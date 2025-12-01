@@ -15,7 +15,8 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, Eye } from "lucide-react"
+import { Search, Eye, Video } from "lucide-react"
+import Link from "next/link"
 
 const recentCalls = [
     {
@@ -95,6 +96,12 @@ export function RecentCalls() {
                 <div className="flex items-center justify-between">
                     <CardTitle>Recent Calls</CardTitle>
                     <div className="flex space-x-2">
+                        <Link href="/call/start">
+                            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                                <Video className="mr-2 h-4 w-4" />
+                                Start Call
+                            </Button>
+                        </Link>
                         <div className="relative w-40 md:w-60">
                             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                             <Input placeholder="Search..." className="pl-8 h-9" />
