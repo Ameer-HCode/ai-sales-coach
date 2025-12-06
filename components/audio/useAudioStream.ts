@@ -38,10 +38,13 @@ export function useAudioStream(meetingId: string, userId: string, participantCou
             console.log("[Audio] Attempting connection...");
 
             // 1. Connect to WebSocket
-            // UPDATED STRATEGY: Use Relative URL via Next.js Proxy
-            // This reuses the main Cloudflare tunnel (no separate port needed)
-            const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-            const wsUrl = `${protocol}//${window.location.host}/api/ws`;
+            // DIRECT CONNECTION: Next.js rewrites don't support WebSocket upgrades
+            // For local dev: ws://localhost:5000
+            // For production/mobile: Use the Cloudflare tunnel URL
+            const isDev = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+            const wsUrl = isDev
+                ? "ws://localhost:5000"
+                : "wss://trigger-trusted-through-williams.trycloudflare.com";
 
             console.log(`[Audio] Connecting to: ${wsUrl}`);
             const ws = new WebSocket(wsUrl);
