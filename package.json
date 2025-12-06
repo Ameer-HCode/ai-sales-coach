@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "tunnel": "cloudflared tunnel --url http://localhost:3000",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "next lint",
+    "tunnel": "cloudflared tunnel --url http://localhost:3000",
+    "tunnel-ws": "cloudflared tunnel --url http://localhost:5000",
     "ws": "tsx websocket-server.ts"
   },
   "dependencies": {

@@ -1,0 +1,4 @@
+websockets
+assemblyai
+python-dotenv
+asyncio

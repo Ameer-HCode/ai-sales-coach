@@ -2,16 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 
+
 interface AudioStreamHook {
     isRecording: boolean;
     startAudio: () => Promise<void>;
     stopAudio: () => void;
     error: string | null;
+    transcript: string;
 }
 
-export function useAudioStream(meetingId: string, userId: string): AudioStreamHook {
+export function useAudioStream(meetingId: string, userId: string, participantCount: number): AudioStreamHook {
     const [isRecording, setIsRecording] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [transcript, setTranscript] = useState<string>("");
 
     const wsRef = useRef<WebSocket | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
@@ -22,6 +25,12 @@ export function useAudioStream(meetingId: string, userId: string): AudioStreamHo
     // Auto-start validation Ref
     const hasAttemptedStart = useRef(false);
 
+    // Ref for participant count to access fresh value inside callbacks
+    const participantCountRef = useRef(participantCount);
+    useEffect(() => {
+        participantCountRef.current = participantCount;
+    }, [participantCount]);
+
     const startAudio = async () => {
         if (isRecording) return; // Prevent double start
         setError(null);
@@ -29,8 +38,12 @@ export function useAudioStream(meetingId: string, userId: string): AudioStreamHo
             console.log("[Audio] Attempting connection...");
 
             // 1. Connect to WebSocket
-            // Note: In PROD, use secure wss:// and proper environment variable
-            const wsUrl = "ws://localhost:3001";
+            // UPDATED STRATEGY: Use Relative URL via Next.js Proxy
+            // This reuses the main Cloudflare tunnel (no separate port needed)
+            const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+            const wsUrl = `${protocol}//${window.location.host}/api/ws`;
+
+            console.log(`[Audio] Connecting to: ${wsUrl}`);
             const ws = new WebSocket(wsUrl);
             wsRef.current = ws;
 
@@ -39,9 +52,28 @@ export function useAudioStream(meetingId: string, userId: string): AudioStreamHo
                     console.log("[Audio] WebSocket Connected");
                     resolve();
                 };
-                ws.onerror = (err) => {
-                    console.error("[Audio] WS Error", err);
-                    reject(new Error("Failed to connect to WebSocket"));
+
+                ws.onerror = (event) => {
+                    console.error("[Audio] WebSocket Error:", event);
+                    // Attempt to extract useful error info if possible (WS errors are notoriously vague in JS)
+                    reject(new Error("WebSocket connection error. Check if backend is reachable."));
+                };
+
+                // Handle Incoming Transcripts
+                ws.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data.type === "transcript") {
+                            // Log to Console as requested by User
+                            console.log(`%c[AI Ear] ${data.is_final ? "✅" : "⚡"} ${data.text}`, data.is_final ? "color: green; font-weight: bold;" : "color: gray;");
+
+                            // Update State for UI
+                            // For live captions, we want to see the text evolving.
+                            setTranscript(data.text);
+                        }
+                    } catch (err) {
+                        console.error("Failed to parse incoming WS message", err);
+                    }
                 };
             });
 
@@ -57,9 +89,6 @@ export function useAudioStream(meetingId: string, userId: string): AudioStreamHo
             streamRef.current = stream;
 
             // Use 16kHz context as preferred by many Speech APIs (AssemblyAI supports others, but 16kHz is standard)
-            // Note: Browsers might enforce their own sample rate (e.g. 44.1 or 48kHz).
-            // The AudioWorklet will handle processing.
-
             try {
                 await audioContext.audioWorklet.addModule("/audio-processor.js");
             } catch (e) {
@@ -78,22 +107,20 @@ export function useAudioStream(meetingId: string, userId: string): AudioStreamHo
             worklet.port.onmessage = (event) => {
                 const audioBuffer = event.data; // Float32Array
 
-                // Convert Float32 to Int16 (PCM) if deemed efficient, 
-                // OR send Float32 and convert on server. 
-                // For now, let's send chunks as is.
-
                 if (ws.readyState === WebSocket.OPEN) {
-                    // Send structure
-                    ws.send(JSON.stringify({
-                        meetingId,
-                        userId,
-                        audio: Array.from(audioBuffer) // Naive encoding for MVP. Binary is better.
-                    }));
+                    // Check Logic: Only send if > 1 participant
+                    if (participantCountRef.current > 1) {
+                        ws.send(JSON.stringify({
+                            meetingId,
+                            userId,
+                            audio: Array.from(audioBuffer)
+                        }));
+                    }
                 }
             };
 
             source.connect(worklet);
-            worklet.connect(audioContext.destination); // Required to keep graph alive, but might hear self? No, worklet output goes to destination. if Processor outputs nothing, it's silent.
+            worklet.connect(audioContext.destination);
 
             setIsRecording(true);
             console.log("[Audio] Streaming active");
@@ -139,5 +166,5 @@ export function useAudioStream(meetingId: string, userId: string): AudioStreamHo
         };
     }, [meetingId, userId]);
 
-    return { isRecording, startAudio, stopAudio, error };
+    return { isRecording, startAudio, stopAudio, error, transcript };
 }

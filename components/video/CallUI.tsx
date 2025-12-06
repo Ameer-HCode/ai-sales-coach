@@ -19,12 +19,16 @@ import DesktopSidebar from "./DesktopSidebar";
 import MeetingGrid from "./MeetingGrid";
 import { cn } from "@/lib/utils";
 
+
 import { useAudioStream } from "../audio/useAudioStream";
+import LiveTranscript from "./LiveTranscript";
 
 export default function CallUI() {
-    const { useCallCallingState, useCallCustomData } = useCallStateHooks();
+    const { useCallCallingState, useCallCustomData, useCallState } = useCallStateHooks();
     const callingState = useCallCallingState();
     const customData = useCallCustomData();
+    const { participantCount } = useCallState(); // Get participant count
+
     const [layout, setLayout] = useState<"grid" | "speaker">("grid");
     const [scaleMode, setScaleMode] = useState<"cover" | "contain">("cover");
     const [showSidebar, setShowSidebar] = useState(false);
@@ -38,7 +42,8 @@ export default function CallUI() {
     const userId = (customData?.userId as string) || "guest-" + Math.floor(Math.random() * 10000);
 
     // Audio Capture Hook - Starts listening when component mounts (and call is joined)
-    const audioState = useAudioStream(callId, userId);
+    // Now passes participantCount to gate logic
+    const { transcript } = useAudioStream(callId, userId, participantCount || 1);
 
     const meetingLink = typeof window !== "undefined" ? `${window.location.origin}/call/${callId}` : "";
 
@@ -96,6 +101,9 @@ export default function CallUI() {
                             <MeetingGrid scaleMode={scaleMode} />
                         </div>
                     </div>
+
+                    {/* Live Transcript Overlay */}
+                    <LiveTranscript text={transcript} />
 
                     {/* Bottom Controls Bar */}
                     <Controls
