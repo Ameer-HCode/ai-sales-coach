@@ -6,7 +6,7 @@ import {
     useCallStateHooks,
 } from "@stream-io/video-react-sdk";
 import Controls from "./Controls";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { LayoutGrid, Users, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -38,8 +38,10 @@ export default function CallUI() {
     const params = useParams();
     const callId = params.id as string;
     // Mock user ID for now - in production use authenticatd user ID
-    // We can try to get it from stream call state or just random for guest
-    const userId = (customData?.userId as string) || "guest-" + Math.floor(Math.random() * 10000);
+    // CRITICAL FIX: Use useState with lazy initializer to ensure ID is generated ONCE and NEVER changes
+    const [userId] = useState(() => {
+        return (customData?.userId as string) || "guest-" + Math.floor(Math.random() * 10000);
+    });
 
     // Audio Capture Hook - Starts listening when component mounts (and call is joined)
     // Now passes participantCount to gate logic

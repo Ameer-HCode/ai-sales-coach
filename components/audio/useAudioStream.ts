@@ -24,6 +24,8 @@ export function useAudioStream(meetingId: string, userId: string, participantCou
 
     // Auto-start validation Ref
     const hasAttemptedStart = useRef(false);
+    // Connection throttle ref
+    const lastConnectionAttemptRef = useRef<number>(0);
 
     // Ref for participant count to access fresh value inside callbacks
     const participantCountRef = useRef(participantCount);
@@ -31,35 +33,70 @@ export function useAudioStream(meetingId: string, userId: string, participantCou
         participantCountRef.current = participantCount;
     }, [participantCount]);
 
+    // Mounting Guard
+    const isMounted = useRef(false);
+
+    useEffect(() => {
+        isMounted.current = true;
+        return () => {
+            isMounted.current = false;
+        };
+    }, []);
+
     const startAudio = async () => {
-        if (isRecording) return; // Prevent double start
+        if (isRecording || !isMounted.current) return; // Prevent double start or start when unmounted
+
+        // Loop Breaker: 500ms debounce
+        if (Date.now() - (lastConnectionAttemptRef.current || 0) < 1000) {
+            console.warn("[Audio] Connection throttled to prevent loop.");
+            return;
+        }
+        lastConnectionAttemptRef.current = Date.now();
+
         setError(null);
         try {
             console.log("[Audio] Attempting connection...");
 
             // 1. Connect to WebSocket
-            // TEMPORARY: Using localhost only until we fix remote WebSocket access
-            // Cloudflare quick tunnels don't support WebSocket upgrades properly
-            const wsUrl = "ws://localhost:5000";
+            // Dynamic URL selection:
+            // - Localhost: Direct connection to ws://localhost:5000
+            // - Remote (Ngrok): Use the secure WebSocket tunnel (Ngrok upgrades HTTPS -> WSS)
+            const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+            // Priority:
+            // 1. Environment Variable (Remote/Tunnel)
+            // 2. Localhost Fallback
+            const wsUrl = process.env.NEXT_PUBLIC_WS_URL || (isLocal ? "ws://localhost:5000" : "");
 
-            console.log(`[Audio] Connecting to: ${wsUrl}`);
+            if (!wsUrl) {
+                console.error("[Audio] No WebSocket URL configured. Set NEXT_PUBLIC_WS_URL in .env.local");
+                setError("Configuration Error: Missing WebSocket URL");
+                return;
+            }
+
+            console.log(`[Audio Debug] Hostname: ${window.location.hostname}`);
+            console.log(`[Audio Debug] Connecting to WS URL: ${wsUrl}`);
             const ws = new WebSocket(wsUrl);
             wsRef.current = ws;
 
             await new Promise<void>((resolve, reject) => {
                 ws.onopen = () => {
+                    if (!isMounted.current) {
+                        ws.close();
+                        return;
+                    }
                     console.log("[Audio] WebSocket Connected");
                     resolve();
                 };
 
                 ws.onerror = (event) => {
+                    if (!isMounted.current) return;
                     console.error("[Audio] WebSocket Error:", event);
-                    // Attempt to extract useful error info if possible (WS errors are notoriously vague in JS)
                     reject(new Error("WebSocket connection error. Check if backend is reachable."));
                 };
 
                 // Handle Incoming Transcripts
                 ws.onmessage = (event) => {
+                    if (!isMounted.current) return;
                     try {
                         const data = JSON.parse(event.data);
                         if (data.type === "transcript") {
@@ -76,6 +113,9 @@ export function useAudioStream(meetingId: string, userId: string, participantCou
                 };
             });
 
+            // Check mounting again after await
+            if (!isMounted.current) throw new Error("Component unmounted during setup");
+
             // 2. Setup Audio Context & Mic
             // IMPORTANT: Resume context if suspended (browser auto-play policy)
             const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
@@ -87,13 +127,16 @@ export function useAudioStream(meetingId: string, userId: string, participantCou
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             streamRef.current = stream;
 
-            // Use 16kHz context as preferred by many Speech APIs (AssemblyAI supports others, but 16kHz is standard)
+            // Use 16kHz context as preferred by many Speech APIs
             try {
-                await audioContext.audioWorklet.addModule("/audio-processor.js");
-            } catch (e) {
+                // Ensure absolute URL to prevent 404s or cors issues on some browsers
+                const workletUrl = new URL("/audio-processor.js", window.location.origin).toString();
+                console.log("[Audio] Loading Worklet from:", workletUrl);
+                await audioContext.audioWorklet.addModule(workletUrl);
+            } catch (e: any) {
                 console.error("Failed to load audio-processor.js", e);
-                // Fallback or retry logic could go here
-                throw e;
+                // If the worklet fails, we cannot process audio. Abort.
+                throw new Error(`Failed to load audio processor: ${e.message}`);
             }
 
             const source = audioContext.createMediaStreamSource(stream);
@@ -121,10 +164,11 @@ export function useAudioStream(meetingId: string, userId: string, participantCou
             source.connect(worklet);
             worklet.connect(audioContext.destination);
 
-            setIsRecording(true);
+            if (isMounted.current) setIsRecording(true);
             console.log("[Audio] Streaming active");
 
         } catch (err: any) {
+            if (!isMounted.current) return;
             console.error("Error starting audio stream:", err);
             setError(err.message || "Unknown error");
             stopAudio();
@@ -132,7 +176,7 @@ export function useAudioStream(meetingId: string, userId: string, participantCou
     };
 
     const stopAudio = () => {
-        setIsRecording(false);
+        if (isMounted.current) setIsRecording(false);
         hasAttemptedStart.current = false;
 
         // Close WS
@@ -155,9 +199,13 @@ export function useAudioStream(meetingId: string, userId: string, participantCou
 
     useEffect(() => {
         // Auto-start on mount
+        console.log(`[Audio Hook Effect] Running. meetingId=${meetingId}, userId=${userId}, hasAttempted=${hasAttemptedStart.current}`);
         if (!hasAttemptedStart.current && meetingId && userId) {
             hasAttemptedStart.current = true;
-            startAudio();
+            // Small delay to ensure render stability before starting heavy audio work
+            setTimeout(() => {
+                if (isMounted.current) startAudio();
+            }, 500);
         }
 
         return () => {
