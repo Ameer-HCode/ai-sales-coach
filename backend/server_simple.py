@@ -2,6 +2,8 @@ import asyncio
 import websockets
 import json
 import os
+import base64
+import struct
 from dotenv import load_dotenv
 
 # Load env
@@ -25,38 +27,62 @@ async def handle_audio_stream(client_ws):
             print("✅ Connected to AssemblyAI")
             
             async def forward_to_aai():
-                """Forward audio from client to AssemblyAI"""
+                """Forward audio from client to AssemblyAI with CORRECT formatting"""
                 try:
                     async for message in client_ws:
                         data = json.loads(message)
                         if "audio" in data:
-                            # Convert array to bytes and send to AssemblyAI
-                            audio_bytes = bytes(data["audio"])
-                            await aai_ws.send(audio_bytes)
+                            # 1. Get Float32 array from client
+                            floats = data["audio"]
+                            
+                            # 2. Convert Float32 [-1, 1] -> Int16 [-32768, 32767]
+                            # Clamping to avoid overflow
+                            pcm16 = b''.join(
+                                struct.pack('<h', int(max(-1, min(1, f)) * 32767))
+                                for f in floats
+                            )
+                            
+                            # 3. Base64 encode
+                            audio_b64 = base64.b64encode(pcm16).decode("utf-8")
+                            
+                            # 4. Wrap in JSON as required by AssemblyAI
+                            await aai_ws.send(json.dumps({
+                                "audio_data": audio_b64
+                            }))
+                            
                 except websockets.exceptions.ConnectionClosed:
                     print("Client disconnected")
+                except Exception as e:
+                    print(f"Error processing audio: {e}")
             
             async def forward_to_client():
                 """Forward transcripts from AssemblyAI to client"""
                 try:
                     async for message in aai_ws:
                         data = json.loads(message)
-                        if data.get("message_type") == "FinalTranscript":
+                        
+                        # Handle Partial Transcript
+                        if data.get("message_type") == "PartialTranscript":
                             transcript_text = data.get("text", "")
-                            print(f"✅ Final: {transcript_text}")
-                            await client_ws.send(json.dumps({
-                                "type": "transcript",
-                                "text": transcript_text,
-                                "is_final": True
-                            }))
-                        elif data.get("message_type") == "PartialTranscript":
+                            if transcript_text:
+                                print(f"⚡ Partial: {transcript_text}", end="\r")
+                                await client_ws.send(json.dumps({
+                                    "type": "transcript",
+                                    "text": transcript_text,
+                                    "is_final": False
+                                }))
+                        
+                        # Handle Final Transcript
+                        elif data.get("message_type") == "FinalTranscript":
                             transcript_text = data.get("text", "")
-                            print(f"⚡ Partial: {transcript_text}", end="\r")
-                            await client_ws.send(json.dumps({
-                                "type": "transcript",
-                                "text": transcript_text,
-                                "is_final": False
-                            }))
+                            if transcript_text:
+                                print(f"✅ Final: {transcript_text}")
+                                await client_ws.send(json.dumps({
+                                    "type": "transcript",
+                                    "text": transcript_text,
+                                    "is_final": True
+                                }))
+                                
                 except websockets.exceptions.ConnectionClosed:
                     print("AssemblyAI disconnected")
             
@@ -67,7 +93,7 @@ async def handle_audio_stream(client_ws):
             )
     
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error details: {e}")
     finally:
         print("Connection closed")
 
