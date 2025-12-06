@@ -40,6 +40,7 @@ import {
 import { useState } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Link from "next/link"
+import { NewMeetingMenu } from "@/components/dashboard/new-meeting-menu"
 
 const callsData = [
     {
@@ -142,12 +143,7 @@ export default function CallsPage() {
                                 <Download className="mr-2 h-4 w-4" />
                                 Export CSV
                             </Button>
-                            <Link href="/call/start">
-                                <Button className="bg-indigo-600 hover:bg-indigo-700 text-white">
-                                    <Video className="mr-2 h-4 w-4" />
-                                    New Meeting
-                                </Button>
-                            </Link>
+                            <NewMeetingMenu />
                         </div>
                     </div>
 

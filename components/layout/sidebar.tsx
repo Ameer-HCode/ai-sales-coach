@@ -13,7 +13,8 @@ import {
     Settings,
     Menu,
     X,
-    Bot
+    Bot,
+    Video
 } from "lucide-react"
 import { useState } from "react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -36,6 +37,12 @@ export function Sidebar({ className }: SidebarProps) {
             icon: Phone,
             href: "/calls",
             active: pathname === "/calls",
+        },
+        {
+            label: "Start Call",
+            icon: Video,
+            href: "/dashboard/start-call",
+            active: pathname === "/dashboard/start-call",
         },
         {
             label: "AI Insights",

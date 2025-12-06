@@ -28,11 +28,11 @@ export default function SettingsPage() {
                             <CardContent className="space-y-4">
                                 <div className="grid gap-2">
                                     <Label htmlFor="name">Full Name</Label>
-                                    <Input id="name" defaultValue="John Doe" />
+                                    <Input id="name" defaultValue="Ameer Hamza" />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="email">Email</Label>
-                                    <Input id="email" defaultValue="john.doe@example.com" />
+                                    <Input id="email" defaultValue="hamzaakhtar018@gmail.com" />
                                 </div>
                                 <Button>Save Changes</Button>
                             </CardContent>
