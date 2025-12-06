@@ -8,12 +8,10 @@ import os
 # Load env variables (API Key)
 load_dotenv(dotenv_path=".env.local")
 
-# Set API Key - Hardcoded Fallback for Reliability
-api_key = os.getenv("ASSEMBLY_AI_API_KEY") or os.getenv("ASSEMBLYAI_API_KEY")
+# Set API Key from environment only
+api_key = os.getenv("ASSEMBLYAI_API_KEY")
 if not api_key:
-    # User provided key from chat history
-    api_key = "a810bd188e124a739b5d45f5ed851f85"
-    print("⚠️ Using Hardcoded API Key (Dev Mode)")
+    raise ValueError("ASSEMBLYAI_API_KEY not found in .env.local file. Please add it.")
 
 aai.settings.api_key = api_key
 
