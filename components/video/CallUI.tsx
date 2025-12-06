@@ -19,9 +19,12 @@ import DesktopSidebar from "./DesktopSidebar";
 import MeetingGrid from "./MeetingGrid";
 import { cn } from "@/lib/utils";
 
+import { useAudioStream } from "../audio/useAudioStream";
+
 export default function CallUI() {
-    const { useCallCallingState } = useCallStateHooks();
+    const { useCallCallingState, useCallCustomData } = useCallStateHooks();
     const callingState = useCallCallingState();
+    const customData = useCallCustomData();
     const [layout, setLayout] = useState<"grid" | "speaker">("grid");
     const [scaleMode, setScaleMode] = useState<"cover" | "contain">("cover");
     const [showSidebar, setShowSidebar] = useState(false);
@@ -30,6 +33,13 @@ export default function CallUI() {
 
     const params = useParams();
     const callId = params.id as string;
+    // Mock user ID for now - in production use authenticatd user ID
+    // We can try to get it from stream call state or just random for guest
+    const userId = (customData?.userId as string) || "guest-" + Math.floor(Math.random() * 10000);
+
+    // Audio Capture Hook - Starts listening when component mounts (and call is joined)
+    const audioState = useAudioStream(callId, userId);
+
     const meetingLink = typeof window !== "undefined" ? `${window.location.origin}/call/${callId}` : "";
 
     const handleCopy = () => {
