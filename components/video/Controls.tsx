@@ -13,9 +13,12 @@ interface ControlsProps {
     onToggleSidebar: () => void;
     scaleMode?: "cover" | "contain";
     onToggleScale?: () => void;
+    // Audio Pipeline Controls
+    isRecording?: boolean;
+    onToggleAudio?: () => void;
 }
 
-export default function Controls({ onToggleSidebar, scaleMode, onToggleScale }: ControlsProps) {
+export default function Controls({ onToggleSidebar, scaleMode, onToggleScale, isRecording, onToggleAudio }: ControlsProps) {
     const call = useCall();
     const router = useRouter();
     const { useCameraState, useMicrophoneState } = useCallStateHooks();
@@ -104,6 +107,23 @@ export default function Controls({ onToggleSidebar, scaleMode, onToggleScale }: 
             >
                 <Info className="h-5 w-5" />
             </Button>
+
+            {/* AI Audio Toggle (Custom Pipeline) */}
+            {onToggleAudio && (
+                <Button
+                    variant={isRecording ? "default" : "destructive"} // Green/Blue if on, Red if off/error
+                    className={cn(
+                        "rounded-full h-12 px-4 gap-2 border border-white/10",
+                        isRecording
+                            ? "bg-indigo-600 hover:bg-indigo-500 text-white animate-pulse"
+                            : "bg-gray-700 text-gray-400 hover:bg-gray-600"
+                    )}
+                    onClick={onToggleAudio}
+                >
+                    <div className={cn("w-2 h-2 rounded-full", isRecording ? "bg-white" : "bg-red-500")} />
+                    <span className="font-bold text-xs">{isRecording ? "AI LISTENING" : "AI PAUSED"}</span>
+                </Button>
+            )}
 
             <Button
                 variant="destructive"

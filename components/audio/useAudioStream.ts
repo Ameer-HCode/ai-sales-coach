@@ -1,7 +1,22 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { useCallStateHooks } from "@stream-io/video-react-sdk";
 
+export interface Diagnostics {
+    micLevel: number; // 0-1
+    remoteLevel: number; // 0-1
+    wsState: 'CONNECTING' | 'OPEN' | 'CLOSED' | 'RECONNECTING';
+    sttLatency: number;
+    aiLatency: number;
+    totalLatency: number;
+}
+
+export interface AISuggestion {
+    hint: string;
+    speaker: string;
+    timestamp: number;
+}
 
 interface AudioStreamHook {
     isRecording: boolean;
@@ -9,209 +24,299 @@ interface AudioStreamHook {
     stopAudio: () => void;
     error: string | null;
     transcript: string;
+    aiSuggestions: AISuggestion[]; // Array!
+    diagnostics: Diagnostics;
 }
 
 export function useAudioStream(meetingId: string, userId: string, participantCount: number): AudioStreamHook {
     const [isRecording, setIsRecording] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [transcript, setTranscript] = useState<string>("");
+    const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[]>([]); // Array State
+    const [diagnostics, setDiagnostics] = useState<Diagnostics>({
+        micLevel: 0,
+        remoteLevel: 0,
+        wsState: 'CLOSED',
+        sttLatency: 0,
+        aiLatency: 0,
+        totalLatency: 0
+    });
 
-    const wsRef = useRef<WebSocket | null>(null);
+    // Stream SDK
+    const { useParticipants } = useCallStateHooks();
+    const participants = useParticipants();
+
+    // Refs
+    const wsInstance = useRef<WebSocket | null>(null);
+    const retryCount = useRef(0);
+    const shouldReconnect = useRef(false);
+    const reconnectTimeout = useRef<NodeJS.Timeout | null>(null);
+
     const audioContextRef = useRef<AudioContext | null>(null);
-    const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
     const workletNodeRef = useRef<AudioWorkletNode | null>(null);
-    const streamRef = useRef<MediaStream | null>(null);
+    const mergerRef = useRef<ChannelMergerNode | null>(null);
 
-    // Auto-start validation Ref
-    const hasAttemptedStart = useRef(false);
-    // Connection throttle ref
-    const lastConnectionAttemptRef = useRef<number>(0);
+    // Sources
+    const micStreamRef = useRef<MediaStream | null>(null);
+    const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+    const remoteSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
 
-    // Ref for participant count to access fresh value inside callbacks
-    const participantCountRef = useRef(participantCount);
-    useEffect(() => {
-        participantCountRef.current = participantCount;
-    }, [participantCount]);
-
-    // Mounting Guard
+    // Mode
+    const currentMode = useRef<'stereo' | 'mono'>('stereo');
     const isMounted = useRef(false);
 
     useEffect(() => {
         isMounted.current = true;
+
+        // Initial Auto-Start logic is triggered below in a separate effect
+
         return () => {
             isMounted.current = false;
+            shouldReconnect.current = false;
+            if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
+            cleanupAudio();
+            wsInstance.current?.close();
         };
     }, []);
 
-    const startAudio = async () => {
-        if (isRecording || !isMounted.current) return; // Prevent double start or start when unmounted
+    const cleanupAudio = useCallback(() => {
+        micSourceRef.current?.disconnect();
+        remoteSourceRef.current?.disconnect();
+        mergerRef.current?.disconnect();
+        workletNodeRef.current?.disconnect();
+        micStreamRef.current?.getTracks().forEach(t => t.stop());
+        audioContextRef.current?.close();
 
-        // Loop Breaker: 500ms debounce
-        if (Date.now() - (lastConnectionAttemptRef.current || 0) < 1000) {
-            console.warn("[Audio] Connection throttled to prevent loop.");
+        micSourceRef.current = null;
+        remoteSourceRef.current = null;
+        mergerRef.current = null;
+        workletNodeRef.current = null;
+        micStreamRef.current = null;
+        audioContextRef.current = null;
+
+        setIsRecording(false);
+    }, []);
+
+    // ----------------------------------------------------------------
+    // WEBSOCKET MANAGER (Detailed Logging + Backoff)
+    // ----------------------------------------------------------------
+    const connectWebSocket = useCallback(() => {
+        if (wsInstance.current?.readyState === WebSocket.OPEN || wsInstance.current?.readyState === WebSocket.CONNECTING) return;
+
+        shouldReconnect.current = true;
+        setDiagnostics(prev => ({ ...prev, wsState: retryCount.current > 0 ? 'RECONNECTING' : 'CONNECTING' }));
+
+        const isLocal = window.location.hostname === "localhost";
+        const wsUrl = process.env.NEXT_PUBLIC_WS_URL || (isLocal ? "ws://localhost:5000" : "");
+
+        if (!wsUrl) {
+            setError("No WebSocket URL");
             return;
         }
-        lastConnectionAttemptRef.current = Date.now();
 
-        setError(null);
-        try {
-            console.log("[Audio] Attempting connection...");
+        console.log(`[WS] Connecting... Attempt ${retryCount.current + 1}`);
+        const ws = new WebSocket(wsUrl);
+        ws.binaryType = "arraybuffer";
+        wsInstance.current = ws;
 
-            // 1. Connect to WebSocket
-            // Dynamic URL selection:
-            // - Localhost: Direct connection to ws://localhost:5000
-            // - Remote (Ngrok): Use the secure WebSocket tunnel (Ngrok upgrades HTTPS -> WSS)
-            const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-            // Priority:
-            // 1. Environment Variable (Remote/Tunnel)
-            // 2. Localhost Fallback
-            const wsUrl = process.env.NEXT_PUBLIC_WS_URL || (isLocal ? "ws://localhost:5000" : "");
+        ws.onopen = () => {
+            console.log("[WS] Connected");
+            retryCount.current = 0; // Reset
+            setDiagnostics(prev => ({ ...prev, wsState: 'OPEN' }));
+            setError(null);
 
-            if (!wsUrl) {
-                console.error("[Audio] No WebSocket URL configured. Set NEXT_PUBLIC_WS_URL in .env.local");
-                setError("Configuration Error: Missing WebSocket URL");
-                return;
-            }
+            // Send Handshake
+            ws.send(JSON.stringify({
+                type: 'start_stream',
+                meetingId,
+                userId,
+                mode: currentMode.current
+            }));
+        };
 
-            console.log(`[Audio Debug] Hostname: ${window.location.hostname}`);
-            console.log(`[Audio Debug] Connecting to WS URL: ${wsUrl}`);
-            const ws = new WebSocket(wsUrl);
-            wsRef.current = ws;
-
-            await new Promise<void>((resolve, reject) => {
-                ws.onopen = () => {
-                    if (!isMounted.current) {
-                        ws.close();
-                        return;
-                    }
-                    console.log("[Audio] WebSocket Connected");
-                    resolve();
-                };
-
-                ws.onerror = (event) => {
-                    if (!isMounted.current) return;
-                    console.error("[Audio] WebSocket Error:", event);
-                    reject(new Error("WebSocket connection error. Check if backend is reachable."));
-                };
-
-                // Handle Incoming Transcripts
-                ws.onmessage = (event) => {
-                    if (!isMounted.current) return;
-                    try {
-                        const data = JSON.parse(event.data);
-                        if (data.type === "transcript") {
-                            // Log to Console as requested by User
-                            console.log(`%c[AI Ear] ${data.is_final ? "✅" : "⚡"} ${data.text}`, data.is_final ? "color: green; font-weight: bold;" : "color: gray;");
-
-                            // Update State for UI
-                            // For live captions, we want to see the text evolving.
-                            setTranscript(data.text);
-                        }
-                    } catch (err) {
-                        console.error("Failed to parse incoming WS message", err);
-                    }
-                };
-            });
-
-            // Check mounting again after await
-            if (!isMounted.current) throw new Error("Component unmounted during setup");
-
-            // 2. Setup Audio Context & Mic
-            // IMPORTANT: Resume context if suspended (browser auto-play policy)
-            const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-            if (audioContext.state === 'suspended') {
-                await audioContext.resume();
-            }
-            audioContextRef.current = audioContext;
-
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            streamRef.current = stream;
-
-            // Use 16kHz context as preferred by many Speech APIs
+        ws.onmessage = (event) => {
             try {
-                // Ensure absolute URL to prevent 404s or cors issues on some browsers
-                const workletUrl = new URL("/audio-processor.js", window.location.origin).toString();
-                console.log("[Audio] Loading Worklet from:", workletUrl);
-                await audioContext.audioWorklet.addModule(workletUrl);
-            } catch (e: any) {
-                console.error("Failed to load audio-processor.js", e);
-                // If the worklet fails, we cannot process audio. Abort.
-                throw new Error(`Failed to load audio processor: ${e.message}`);
+                const data = JSON.parse(event.data);
+                if (data.type === "transcript") {
+                    setTranscript(data.text);
+                } else if (data.type === "ai_hint") {
+                    // APPEND Logic
+                    setAiSuggestions(prev => [
+                        ...prev,
+                        {
+                            hint: data.hint,
+                            speaker: data.speaker || "Customer",
+                            timestamp: data.timestamp || Date.now()
+                        }
+                    ]);
+                } else if (data.type === "stats") {
+                    setDiagnostics(prev => ({
+                        ...prev,
+                        sttLatency: data.latency_stt,
+                        aiLatency: data.latency_ai,
+                        totalLatency: data.latency_total
+                    }));
+                }
+            } catch (e) { }
+        };
+
+        ws.onclose = () => {
+            console.warn("[WS] Closed");
+            setDiagnostics(prev => ({ ...prev, wsState: 'CLOSED' }));
+
+            if (shouldReconnect.current && retryCount.current < 5) {
+                const delay = [500, 1000, 2000, 5000, 10000][retryCount.current] || 10000;
+                const jitter = delay * 0.1 * (Math.random() * 2 - 1); // +/- 10%
+                const finalDelay = delay + jitter;
+
+                console.log(`[WS] Retrying in ${Math.round(finalDelay)}ms...`);
+                reconnectTimeout.current = setTimeout(() => {
+                    retryCount.current++;
+                    connectWebSocket();
+                }, finalDelay);
+            } else if (retryCount.current >= 5) {
+                setError("Connection failed. Max retries reached.");
             }
+        };
 
-            const source = audioContext.createMediaStreamSource(stream);
-            sourceNodeRef.current = source;
+        ws.onerror = (e) => {
+            console.error("[WS] Error", e);
+        };
 
-            const worklet = new AudioWorkletNode(audioContext, "audio-processor");
+    }, [meetingId, userId]);
+
+
+    // ----------------------------------------------------------------
+    // MODE SWITCHER
+    // ----------------------------------------------------------------
+    useEffect(() => {
+        if (!isMounted.current) return;
+        const mode = participantCount > 2 ? 'mono' : 'stereo';
+        if (mode !== currentMode.current) {
+            console.log(`[AudioConfig] Mode ${currentMode.current} -> ${mode}`);
+            currentMode.current = mode;
+            if (wsInstance.current?.readyState === WebSocket.OPEN) {
+                wsInstance.current.send(JSON.stringify({ type: 'config', mode }));
+            }
+        }
+    }, [participantCount]);
+
+    // ----------------------------------------------------------------
+    // REMOTE AUDIO
+    // ----------------------------------------------------------------
+    useEffect(() => {
+        if (!isRecording || !audioContextRef.current || !mergerRef.current) return;
+        if (currentMode.current !== 'stereo') return;
+
+        const remoteP = participants.find(p => !p.isLocalParticipant && p.audioStream);
+        if (remoteP && remoteP.audioStream && !remoteSourceRef.current) {
+            console.log("🎧 Attaching Remote Stream");
+            try {
+                const ctx = audioContextRef.current;
+                const src = ctx.createMediaStreamSource(remoteP.audioStream);
+                remoteSourceRef.current = src;
+                src.connect(mergerRef.current, 0, 1);
+            } catch (e) { console.error(e); }
+        }
+    }, [participants, isRecording]);
+
+
+    const startAudio = async () => {
+        if (isRecording) return;
+
+        // Ensure WS is connecting/connected
+        if (!wsInstance.current || wsInstance.current.readyState === WebSocket.CLOSED) {
+            connectWebSocket();
+        }
+
+        try {
+            console.log("🚀 Starting Audio Pipeline");
+            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+            audioContextRef.current = ctx;
+
+            await ctx.audioWorklet.addModule("/audio-processor.js");
+            const worklet = new AudioWorkletNode(ctx, "audio-processor");
             workletNodeRef.current = worklet;
 
-            // 3. Pipeline: Mic -> Worklet -> Destination (Muted to prevent feedback)
-            worklet.port.onmessage = (event) => {
-                const audioBuffer = event.data; // Float32Array
+            const merger = ctx.createChannelMerger(2);
+            mergerRef.current = merger;
 
-                if (ws.readyState === WebSocket.OPEN) {
-                    // Check Logic: Only send if > 1 participant
-                    if (participantCountRef.current > 1) {
-                        ws.send(JSON.stringify({
-                            meetingId,
-                            userId,
-                            audio: Array.from(audioBuffer)
-                        }));
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+            });
+            micStreamRef.current = stream;
+
+            const micSrc = ctx.createMediaStreamSource(stream);
+            micSourceRef.current = micSrc;
+            micSrc.connect(merger, 0, 0);
+
+            // Connect Remote if already exists (otherwise effect handles it)
+            // But merger needs to be connected to Worklet
+            merger.connect(worklet);
+
+            // Worklet to Silent Destination (Hack to keep it running)
+            const silentGain = ctx.createGain();
+            silentGain.gain.value = 0;
+            worklet.connect(silentGain);
+            silentGain.connect(ctx.destination);
+
+            // Data Handling
+            worklet.port.onmessage = (event) => {
+                const { type, data, rmsL, rmsR } = event.data;
+
+                if (type === "level") {
+                    setDiagnostics(prev => ({
+                        ...prev,
+                        micLevel: rmsL,
+                        remoteLevel: rmsR
+                    }));
+                    return;
+                }
+
+                if (type === "audio") {
+                    setDiagnostics(prev => ({
+                        ...prev,
+                        micLevel: rmsL,
+                        remoteLevel: rmsR
+                    }));
+
+                    const f32 = data;
+                    const i16 = new Int16Array(f32.length);
+                    for (let i = 0; i < f32.length; i++) {
+                        let s = Math.max(-1, Math.min(1, f32[i]));
+                        i16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                    }
+
+                    if (wsInstance.current?.readyState === WebSocket.OPEN) {
+                        wsInstance.current.send(i16.buffer);
                     }
                 }
             };
 
-            source.connect(worklet);
-            worklet.connect(audioContext.destination);
-
-            if (isMounted.current) setIsRecording(true);
-            console.log("[Audio] Streaming active");
+            setIsRecording(true);
 
         } catch (err: any) {
-            if (!isMounted.current) return;
-            console.error("Error starting audio stream:", err);
-            setError(err.message || "Unknown error");
-            stopAudio();
+            console.error("Start Audio Error:", err);
+            setError(err.message);
+            cleanupAudio();
         }
     };
 
-    const stopAudio = () => {
-        if (isMounted.current) setIsRecording(false);
-        hasAttemptedStart.current = false;
+    const stopAudio = useCallback(() => {
+        shouldReconnect.current = false;
+        cleanupAudio();
+        wsInstance.current?.close();
+    }, [cleanupAudio]);
 
-        // Close WS
-        if (wsRef.current) {
-            wsRef.current.close();
-            wsRef.current = null;
-        }
-
-        // Stop Audio
-        if (sourceNodeRef.current) sourceNodeRef.current.disconnect();
-        if (workletNodeRef.current) workletNodeRef.current.disconnect();
-        if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-        if (audioContextRef.current) audioContextRef.current.close();
-
-        sourceNodeRef.current = null;
-        workletNodeRef.current = null;
-        streamRef.current = null;
-        audioContextRef.current = null;
-    };
-
+    // Auto-Start
     useEffect(() => {
-        // Auto-start on mount
-        console.log(`[Audio Hook Effect] Running. meetingId=${meetingId}, userId=${userId}, hasAttempted=${hasAttemptedStart.current}`);
-        if (!hasAttemptedStart.current && meetingId && userId) {
-            hasAttemptedStart.current = true;
-            // Small delay to ensure render stability before starting heavy audio work
-            setTimeout(() => {
+        if (meetingId && userId && !isRecording && !audioContextRef.current) {
+            const t = setTimeout(() => {
                 if (isMounted.current) startAudio();
-            }, 500);
+            }, 1000);
+            return () => clearTimeout(t);
         }
-
-        return () => {
-            stopAudio();
-        };
     }, [meetingId, userId]);
 
-    return { isRecording, startAudio, stopAudio, error, transcript };
+    return { isRecording, startAudio, stopAudio, error, transcript, aiSuggestions, diagnostics };
 }

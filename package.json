@@ -9,7 +9,7 @@
     "lint": "next lint",
     "tunnel": "cloudflared tunnel --url http://localhost:3000",
     "tunnel-ws": "cloudflared tunnel --url http://localhost:5000",
-    "ws": "tsx websocket-server.ts"
+    "ws": "cd backend && npm run dev"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",
@@ -26,9 +26,12 @@
     "@types/uuid": "^11.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "dotenv": "^17.2.3",
+    "groq-sdk": "^0.37.0",
     "lucide-react": "^0.555.0",
     "next": "16.0.6",
     "ngrok": "^5.0.0-beta.2",
+    "openai": "^6.10.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "recharts": "^3.5.1",
@@ -36,8 +39,7 @@
     "stream-chat": "^9.26.1",
     "stream-chat-react": "^13.13.0",
     "tailwind-merge": "^3.4.0",
-    "uuid": "^13.0.0",
-    "ws": "^8.18.3"
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -44,3 +44,9 @@ next-env.d.ts
 tunnel.log
 
 tunnel-*.log
+
+# Backend
+backend/node_modules
+
+# Logs
+*.log

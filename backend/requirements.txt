@@ -1,4 +1,0 @@
-websockets
-assemblyai>=0.48.1
-python-dotenv
-asyncio

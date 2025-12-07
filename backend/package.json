@@ -1,0 +1,26 @@
+{
+    "name": "ai-sales-coach-backend",
+    "version": "1.0.0",
+    "description": "Backend for AI Sales Coach",
+    "main": "server.ts",
+    "scripts": {
+        "dev": "tsx server.ts",
+        "start": "tsx server.ts"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "@deepgram/sdk": "^4.11.2",
+        "assemblyai": "^4.19.0",
+        "dotenv": "^16.4.5",
+        "groq-sdk": "^0.37.0",
+        "ws": "^8.18.0"
+    },
+    "devDependencies": {
+        "@types/node": "^20.0.0",
+        "@types/ws": "^8.5.10",
+        "tsx": "^4.0.0",
+        "typescript": "^5.0.0"
+    }
+}
