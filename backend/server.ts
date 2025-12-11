@@ -3,10 +3,12 @@ import { WebSocketServer, WebSocket } from 'ws';
 import dotenv from 'dotenv';
 import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
 import Groq from 'groq-sdk';
+import { db } from './db/index';
+import { callTranscripts } from './db/schema';
 
 dotenv.config();
 
-const PORT = 5000;
+const PORT = parseInt(process.env.PORT || '5000', 10);
 const wss = new WebSocketServer({ port: PORT });
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -24,6 +26,10 @@ wss.on('connection', (ws: WebSocket) => {
 
     let deepgramLive: any = null;
     let keepAliveInterval: NodeJS.Timeout;
+
+    // Call Context
+    let currentCallId: string | null = null;
+    let transcriptSequence = 0;
 
     // Performance Tracking
     const latencies: any = {
@@ -120,6 +126,24 @@ wss.on('connection', (ws: WebSocket) => {
                 };
                 ws.send(JSON.stringify(payload));
 
+                // 4️⃣ DB STORAGE (Step 4 Requirement)
+                // If final and we have a call_id, save it.
+                if (isFinal && currentCallId) {
+                    try {
+                        transcriptSequence++;
+                        // Insert without awaiting to keep WebSocket fast (Fire & Forget logic)
+                        db.insert(callTranscripts).values({
+                            callId: currentCallId,
+                            speaker: speaker.toLowerCase(),
+                            text: transcript,
+                            timestampMs: Math.floor(performance.now()), // Relative offset, could be refined
+                            sequence: transcriptSequence
+                        }).execute().catch(err => console.error("DB Insert Error:", err));
+                    } catch (e) {
+                        console.error("DB Logic Error:", e);
+                    }
+                }
+
                 // Trigger AI Logic (Only Final + Customer)
                 if (isFinal && (speaker === "Customer" || speaker.includes("Participant"))) {
                     latencies.aiStart = performance.now();
@@ -146,6 +170,13 @@ wss.on('connection', (ws: WebSocket) => {
         if (!isBinary) {
             try {
                 const msg = JSON.parse(message.toString());
+
+                // NEW: Handle Call Init
+                if (msg.type === 'init' && msg.call_id) {
+                    currentCallId = msg.call_id;
+                    console.log(`📞 Call ID Set: ${currentCallId}`);
+                }
+
                 if (msg.type === 'config' && msg.mode) {
                     console.log(`🔄 Switching Mode to ${msg.mode}`);
                     setupDeepgram(msg.mode);
@@ -206,15 +237,18 @@ async function runAIAnalysis(text: string, speaker: string, ws: WebSocket, sttLa
                     speaker: speaker,
                     timestamp: Date.now()
                 };
-                ws.send(JSON.stringify(payload));
+                // Make sure WS is open before sending
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify(payload));
 
-                // Send Stats
-                ws.send(JSON.stringify({
-                    type: "stats",
-                    latency_stt: sttLatency,
-                    latency_ai: aiLatency,
-                    latency_total: totalLatency
-                }));
+                    // Send Stats
+                    ws.send(JSON.stringify({
+                        type: "stats",
+                        latency_stt: sttLatency,
+                        latency_ai: aiLatency,
+                        latency_total: totalLatency
+                    }));
+                }
             }
         }
     } catch (e) {
