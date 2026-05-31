@@ -74,6 +74,12 @@ export function useAudioStream(meetingId: string, userId: string, participantCou
             isMounted.current = false;
             shouldReconnect.current = false;
             if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
+
+            // Signal End Call
+            if (wsInstance.current?.readyState === WebSocket.OPEN) {
+                wsInstance.current.send(JSON.stringify({ type: 'end_call' }));
+            }
+
             cleanupAudio();
             wsInstance.current?.close();
         };
@@ -107,7 +113,7 @@ export function useAudioStream(meetingId: string, userId: string, participantCou
         setDiagnostics(prev => ({ ...prev, wsState: retryCount.current > 0 ? 'RECONNECTING' : 'CONNECTING' }));
 
         const isLocal = window.location.hostname === "localhost";
-        const wsUrl = process.env.NEXT_PUBLIC_WS_URL || (isLocal ? "ws://localhost:5000" : "");
+        const wsUrl = process.env.NEXT_PUBLIC_WS_URL || (isLocal ? "ws://localhost:5001" : "");
 
         if (!wsUrl) {
             setError("No WebSocket URL");
@@ -118,6 +124,7 @@ export function useAudioStream(meetingId: string, userId: string, participantCou
         const ws = new WebSocket(wsUrl);
         ws.binaryType = "arraybuffer";
         wsInstance.current = ws;
+        (window as any).debugWs = ws;
 
         ws.onopen = () => {
             console.log("[WS] Connected");
@@ -136,10 +143,26 @@ export function useAudioStream(meetingId: string, userId: string, participantCou
 
         ws.onmessage = (event) => {
             try {
+                // 🔥 STEP 6 — VERIFY FRONTEND RECEIVES THE ai_hint
+                console.log("📨 FRONTEND WS MESSAGE:", event.data);
+
                 const data = JSON.parse(event.data);
+
+                // 🛠 REMOTE DEBUG LOGGING
+                if (data.type === 'debug_log') {
+                    console.log(`%c[BACKEND] ${data.label}`, 'color: #00ff00; font-weight: bold;', data.data);
+                    return;
+                }
+
                 if (data.type === "transcript") {
                     setTranscript(data.text);
                 } else if (data.type === "ai_hint") {
+                    // 🔥 STEP 6 (Confirmed)
+                    console.log("🎯 AI HINT RECEIVED:", data.hint);
+
+                    // 🔥 STEP 7 — VERIFY STATE UPDATE
+                    console.log("🧠 ADDING AI SUGGESTION TO STATE:", data);
+
                     // APPEND Logic
                     setAiSuggestions(prev => [
                         ...prev,
@@ -157,7 +180,7 @@ export function useAudioStream(meetingId: string, userId: string, participantCou
                         totalLatency: data.latency_total
                     }));
                 }
-            } catch (e) { }
+            } catch (e) { console.error("[WS] Failed to parse message:", e, event.data); }
         };
 
         ws.onclose = () => {
@@ -234,6 +257,15 @@ export function useAudioStream(meetingId: string, userId: string, participantCou
             const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
             audioContextRef.current = ctx;
 
+            // Log state to backend
+            if (wsInstance.current?.readyState === WebSocket.OPEN) {
+                wsInstance.current.send(JSON.stringify({
+                    type: 'debug_log',
+                    label: 'Browser Audio State',
+                    data: { state: ctx.state, sampleRate: ctx.sampleRate }
+                }));
+            }
+
             await ctx.audioWorklet.addModule("/audio-processor.js");
             const worklet = new AudioWorkletNode(ctx, "audio-processor");
             workletNodeRef.current = worklet;
@@ -288,6 +320,7 @@ export function useAudioStream(meetingId: string, userId: string, participantCou
                     }
 
                     if (wsInstance.current?.readyState === WebSocket.OPEN) {
+                        if (Math.random() < 0.01) console.log(`[AudioStream] Sending binary chunk: ${i16.buffer.byteLength} bytes`);
                         wsInstance.current.send(i16.buffer);
                     }
                 }

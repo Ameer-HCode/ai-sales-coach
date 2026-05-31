@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "tunnel": "cloudflared tunnel --url http://localhost:3000",
-    "tunnel-ws": "cloudflared tunnel --url http://localhost:5000",
+    "tunnel-ws": "ngrok http --url=marylee-brotherlike-rosily.ngrok-free.dev 5001",
     "ws": "cd backend && npm run dev"
   },
   "dependencies": {

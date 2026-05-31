@@ -38,3 +38,13 @@ export const customerMemory = pgTable('customer_memory', {
     summaryJson: jsonb('summary_json').notNull(), // The Groq AI summary
     createdAt: timestamp('created_at').defaultNow(),
 });
+
+// 5. Call Participants (Guests) - For strict tracking of who joined
+export const callParticipants = pgTable('call_participants', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    callId: uuid('call_id').references(() => calls.id).notNull(),
+    name: text('name').notNull(),
+    email: text('email').notNull(),
+    role: text('role').notNull(), // 'host' | 'guest'
+    joinedAt: timestamp('joined_at').defaultNow(),
+});

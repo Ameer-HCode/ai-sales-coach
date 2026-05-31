@@ -3,8 +3,12 @@ import { Navbar } from "@/components/layout/navbar"
 import { AiInsights } from "@/components/dashboard/ai-insights"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Brain, TrendingUp, MessageSquare } from "lucide-react"
+import { getInsightsStats } from "@/actions/get-insights-stats"
 
-export default function InsightsPage() {
+export const dynamic = 'force-dynamic';
+
+export default async function InsightsPage() {
+    const stats = await getInsightsStats();
     return (
         <div className="h-full relative">
             <div className="hidden h-full md:flex md:w-72 md:flex-col md:fixed md:inset-y-0 z-[80] bg-gray-900">
@@ -24,8 +28,8 @@ export default function InsightsPage() {
                                 <Brain className="h-4 w-4 text-muted-foreground" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold">1,234</div>
-                                <p className="text-xs text-muted-foreground">+20.1% from last month</p>
+                                <div className="text-2xl font-bold">{stats.totalAnalysis}</div>
+                                <p className="text-xs text-muted-foreground">{stats.totalAnalysisTrend}</p>
                             </CardContent>
                         </Card>
                         <Card>
@@ -34,8 +38,8 @@ export default function InsightsPage() {
                                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold">8.5/10</div>
-                                <p className="text-xs text-muted-foreground">+0.2 from last week</p>
+                                <div className="text-2xl font-bold">{stats.sentimentScore}</div>
+                                <p className="text-xs text-muted-foreground">{stats.sentimentTrend}</p>
                             </CardContent>
                         </Card>
                         <Card>
@@ -44,8 +48,8 @@ export default function InsightsPage() {
                                 <MessageSquare className="h-4 w-4 text-muted-foreground" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold">45</div>
-                                <p className="text-xs text-muted-foreground">New tips generated</p>
+                                <div className="text-2xl font-bold">{stats.coachingTips}</div>
+                                <p className="text-xs text-muted-foreground">{stats.coachingTipsTrend}</p>
                             </CardContent>
                         </Card>
                     </div>

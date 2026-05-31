@@ -2,46 +2,17 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from "recharts"
+import { useEffect, useState } from "react"
+import { getChartData } from "@/actions/get-chart-data"
 
-const data = [
-    {
-        name: "Mon",
-        calls: 24,
-        deals: 4,
-    },
-    {
-        name: "Tue",
-        calls: 35,
-        deals: 6,
-    },
-    {
-        name: "Wed",
-        calls: 42,
-        deals: 8,
-    },
-    {
-        name: "Thu",
-        calls: 38,
-        deals: 5,
-    },
-    {
-        name: "Fri",
-        calls: 45,
-        deals: 9,
-    },
-    {
-        name: "Sat",
-        calls: 12,
-        deals: 2,
-    },
-    {
-        name: "Sun",
-        calls: 8,
-        deals: 1,
-    },
-]
+
 
 export function PerformanceChart() {
+    const [data, setData] = useState<any[]>([])
+
+    useEffect(() => {
+        getChartData().then(setData)
+    }, [])
     return (
         <Card className="col-span-4">
             <CardHeader>

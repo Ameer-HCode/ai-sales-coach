@@ -37,86 +37,23 @@ import {
     Phone,
     ArrowUpDown
 } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Link from "next/link"
 import { NewMeetingMenu } from "@/components/dashboard/new-meeting-menu"
-
-const callsData = [
-    {
-        id: "1",
-        title: "Weekly Sync with TechCorp",
-        date: "Today, 10:23 AM",
-        duration: "45 min",
-        participants: [
-            { name: "Sarah Miller", img: "/avatars/02.png", fallback: "SM" },
-            { name: "John Doe", img: "/avatars/01.png", fallback: "JD" }
-        ],
-        status: "Closed Won",
-        sentiment: "Positive",
-        type: "video",
-        recording: true,
-    },
-    {
-        id: "2",
-        title: "Discovery Call - Growth Dynamics",
-        date: "Today, 09:15 AM",
-        duration: "24 min",
-        participants: [
-            { name: "Michael Chen", img: "/avatars/03.png", fallback: "MC" },
-            { name: "John Doe", img: "/avatars/01.png", fallback: "JD" }
-        ],
-        status: "Negotiation",
-        sentiment: "Neutral",
-        type: "phone",
-        recording: true,
-    },
-    {
-        id: "3",
-        title: "Contract Review - Innovate Solutions",
-        date: "Yesterday, 4:50 PM",
-        duration: "1h 12m",
-        participants: [
-            { name: "Jessica Davis", img: "/avatars/04.png", fallback: "JD" },
-            { name: "Mark Wilson", img: "/avatars/05.png", fallback: "MW" },
-            { name: "John Doe", img: "/avatars/01.png", fallback: "JD" }
-        ],
-        status: "Follow Up",
-        sentiment: "Mixed",
-        type: "video",
-        recording: true,
-    },
-    {
-        id: "4",
-        title: "Intro Call - Omega Systems",
-        date: "Yesterday, 2:15 PM",
-        duration: "15 min",
-        participants: [
-            { name: "David Wilson", img: "/avatars/05.png", fallback: "DW" }
-        ],
-        status: "Missed",
-        sentiment: "N/A",
-        type: "phone",
-        recording: false,
-    },
-    {
-        id: "5",
-        title: "Demo Presentation - Alpha Retail",
-        date: "Oct 24, 11:00 AM",
-        duration: "55 min",
-        participants: [
-            { name: "Emily Brown", img: "/avatars/06.png", fallback: "EB" },
-            { name: "Team Member", img: "/avatars/01.png", fallback: "TM" }
-        ],
-        status: "Completed",
-        sentiment: "Positive",
-        type: "video",
-        recording: true,
-    },
-]
+import { getCallsData } from "@/actions/get-calls"
 
 export default function CallsPage() {
+    const [callsData, setCallsData] = useState<any[]>([])
     const [filterStatus, setFilterStatus] = useState("all")
+    const [isLoading, setIsLoading] = useState(true)
+
+    useEffect(() => {
+        getCallsData().then(data => {
+            setCallsData(data)
+            setIsLoading(false)
+        })
+    }, [])
 
     const filteredCalls = callsData.filter(call => {
         if (filterStatus === "all") return true
@@ -199,7 +136,13 @@ export default function CallsPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {filteredCalls.length > 0 ? (
+                                {isLoading ? (
+                                    <TableRow>
+                                        <TableCell colSpan={7} className="h-24 text-center text-slate-500">
+                                            Loading calls...
+                                        </TableCell>
+                                    </TableRow>
+                                ) : filteredCalls.length > 0 ? (
                                     filteredCalls.map((call) => (
                                         <TableRow key={call.id} className="hover:bg-slate-50/50 transition-colors group">
                                             <TableCell>
@@ -221,7 +164,7 @@ export default function CallsPage() {
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex -space-x-2 overflow-hidden">
-                                                    {call.participants.map((p, i) => (
+                                                    {call.participants.map((p: any, i: number) => (
                                                         <Avatar key={i} className="inline-block border-2 border-white h-8 w-8 ring-2 ring-transparent">
                                                             <AvatarImage src={p.img} />
                                                             <AvatarFallback className="bg-slate-100 text-slate-600 text-[10px]">{p.fallback}</AvatarFallback>

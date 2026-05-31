@@ -17,64 +17,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Search, Eye, Video } from "lucide-react"
 import Link from "next/link"
+import { useEffect, useState } from "react"
+import { getCallsData } from "@/actions/get-calls"
 
-const recentCalls = [
-    {
-        id: "1",
-        name: "Sarah Miller",
-        company: "TechCorp Inc.",
-        avatar: "/avatars/02.png",
-        initials: "SM",
-        date: "Today, 10:23 AM",
-        status: "Closed Won",
-        duration: "12m 45s",
-        summary: "High interest in Pro plan. Agreed to sign contract.",
-    },
-    {
-        id: "2",
-        name: "Michael Chen",
-        company: "Growth Dynamics",
-        avatar: "/avatars/03.png",
-        initials: "MC",
-        date: "Today, 09:15 AM",
-        status: "Negotiation",
-        duration: "24m 10s",
-        summary: "Discussed pricing. Requested 10% discount for annual.",
-    },
-    {
-        id: "3",
-        name: "Jessica Davis",
-        company: "Innovate Solutions",
-        avatar: "/avatars/04.png",
-        initials: "JD",
-        date: "Yesterday, 4:50 PM",
-        status: "Follow Up",
-        duration: "08m 30s",
-        summary: "Needs to consult with CTO. Scheduled follow-up for Tue.",
-    },
-    {
-        id: "4",
-        name: "David Wilson",
-        company: "Omega Systems",
-        avatar: "/avatars/05.png",
-        initials: "DW",
-        date: "Yesterday, 2:15 PM",
-        status: "Lost",
-        duration: "05m 12s",
-        summary: "Budget constraints. Not ready to commit this quarter.",
-    },
-    {
-        id: "5",
-        name: "Emily Brown",
-        company: "Alpha Retail",
-        avatar: "/avatars/06.png",
-        initials: "EB",
-        date: "Yesterday, 11:00 AM",
-        status: "Qualified",
-        duration: "15m 20s",
-        summary: "Good fit. Demo scheduled for next week.",
-    },
-]
+
 
 const getStatusColor = (status: string) => {
     switch (status) {
@@ -90,6 +36,16 @@ const getStatusColor = (status: string) => {
 }
 
 export function RecentCalls() {
+    const [recentCalls, setRecentCalls] = useState<any[]>([])
+    const [isLoading, setIsLoading] = useState(true)
+
+    useEffect(() => {
+        getCallsData().then(data => {
+            setRecentCalls(data)
+            setIsLoading(false)
+        })
+    }, [])
+
     return (
         <Card className="col-span-1 lg:col-span-2 h-full">
             <CardHeader>
@@ -140,48 +96,62 @@ export function RecentCalls() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {recentCalls.map((call) => (
-                                    <TableRow key={call.id}>
-                                        <TableCell>
-                                            <div className="flex items-center space-x-3">
-                                                <Avatar className="h-9 w-9">
-                                                    <AvatarImage src={call.avatar} alt={call.name} />
-                                                    <AvatarFallback className="bg-indigo-50 text-indigo-600">{call.initials}</AvatarFallback>
-                                                </Avatar>
-                                                <div>
-                                                    <div className="font-medium text-sm">{call.name}</div>
-                                                    <div className="text-xs text-muted-foreground">{call.company}</div>
-                                                </div>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-sm text-muted-foreground">{call.date}</TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline" className={getStatusColor(call.status)}>
-                                                {call.status}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="hidden md:table-cell text-sm">{call.duration}</TableCell>
-                                        <TableCell className="hidden lg:table-cell text-sm text-muted-foreground max-w-[200px] truncate">
-                                            {call.summary}
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                <Eye className="h-4 w-4 text-slate-500" />
-                                            </Button>
+                                {isLoading ? (
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="h-24 text-center text-slate-500">
+                                            Loading calls...
                                         </TableCell>
                                     </TableRow>
-                                ))}
+                                ) : recentCalls.length > 0 ? (
+                                    recentCalls.map((call) => (
+                                        <TableRow key={call.id}>
+                                            <TableCell>
+                                                <div className="flex items-center space-x-3">
+                                                    <Avatar className="h-9 w-9">
+                                                        <AvatarImage src={call.avatar} alt={call.name} />
+                                                        <AvatarFallback className="bg-indigo-50 text-indigo-600">{call.initials}</AvatarFallback>
+                                                    </Avatar>
+                                                    <div>
+                                                        <div className="font-medium text-sm">{call.name}</div>
+                                                        <div className="text-xs text-muted-foreground">{call.company}</div>
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-sm text-muted-foreground">{call.date}</TableCell>
+                                            <TableCell>
+                                                <Badge variant="outline" className={getStatusColor(call.status)}>
+                                                    {call.status}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="hidden md:table-cell text-sm">{call.duration}</TableCell>
+                                            <TableCell className="hidden lg:table-cell text-sm text-muted-foreground max-w-[200px] truncate">
+                                                {call.summary}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                    <Eye className="h-4 w-4 text-slate-500" />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="h-24 text-center text-slate-500">
+                                            No calls found.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
                             </TableBody>
                         </Table>
                     </TabsContent>
                     <TabsContent value="my_calls">
                         <div className="py-8 text-center text-muted-foreground">
-                            No calls found for "My Calls" filter in this mock view.
+                            No calls found for "My Calls" filter.
                         </div>
                     </TabsContent>
                     <TabsContent value="team">
                         <div className="py-8 text-center text-muted-foreground">
-                            No calls found for "Team Calls" filter in this mock view.
+                            No calls found for "Team Calls" filter.
                         </div>
                     </TabsContent>
                 </Tabs>

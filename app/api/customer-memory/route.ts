@@ -1,4 +1,4 @@
-import { db } from '@/backend/db/index';
+import { db } from '@/lib/db';
 import { customerMemory, customers } from '@/backend/db/schema';
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';

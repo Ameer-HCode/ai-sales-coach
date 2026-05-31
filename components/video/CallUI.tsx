@@ -1,5 +1,8 @@
+"use client";
+
 import {
-    useCallStateHooks
+    useCallStateHooks,
+    ParticipantView,
 } from "@stream-io/video-react-sdk";
 import Controls from "./Controls";
 import { useState } from "react";
@@ -9,20 +12,28 @@ import LiveTranscript from "./LiveTranscript";
 import { AIHintPopup } from "../audio/AIHintPopup";
 import { RealtimeDiagnostics } from '@/components/debug/RealtimeDiagnostics';
 import { AISuggestionsPanel } from './AISuggestionsPanel';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Copy, Users } from "lucide-react";
+import { toast } from "sonner";
+import { useUser } from "@clerk/nextjs";
 
 export default function CallUI() {
-    const { useCallCustomData, useParticipants } = useCallStateHooks();
+    const { useCallCustomData, useParticipants, useLocalParticipant } = useCallStateHooks();
     const customData = useCallCustomData();
-    const participants = useParticipants(); // Corrected hook usage
+    const participants = useParticipants();
+    const localParticipant = useLocalParticipant();
+    const { user } = useUser();
+    const isHost = !!user;
+
+    // Remote participant (find the first one that isn't me)
+    const remoteParticipant = participants.find(p => p.sessionId !== localParticipant?.sessionId);
 
     const params = useParams();
-    // Use callId from params or customData (safer to prioritize params for routing consistency)
     const callId = (params.id as string) || (customData?.callId as string) || "";
 
-    // Consistent User ID state
-    const [userId] = useState(() => {
-        return (customData?.userId as string) || "guest-" + Math.floor(Math.random() * 10000);
-    });
+    // UI State
+    const [showInfo, setShowInfo] = useState(false);
 
     // Get Audio Stream & AI Logic
     const {
@@ -34,14 +45,21 @@ export default function CallUI() {
         diagnostics
     } = useAudioStream(
         callId,
-        userId,
+        localParticipant?.userId || "guest",
         participants.length
     );
 
     const latestHint = aiSuggestions.length > 0 ? aiSuggestions[aiSuggestions.length - 1].hint : null;
 
+    const copyInviteLink = () => {
+        const originUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+        const fallbackUrl = window.location.href.replace(window.location.origin, originUrl);
+        navigator.clipboard.writeText(fallbackUrl);
+        toast.success("Invite link copied!");
+    };
+
     return (
-        <div className="flex-1 flex flex-col relative bg-gray-950 overflow-hidden h-screen w-full">
+        <div className="flex-1 flex flex-col relative bg-[#202124] overflow-hidden h-screen w-full">
             {/* 1. Diagnostics Overlay */}
             <RealtimeDiagnostics
                 stats={diagnostics}
@@ -49,26 +67,53 @@ export default function CallUI() {
             />
 
             {/* 2. Main Video Area */}
-            <div className="flex-1 p-4 flex items-center justify-center">
-                <div className="w-full max-w-6xl h-[80vh] grid grid-cols-2 gap-4">
-                    <div className="bg-gray-900 rounded-xl flex items-center justify-center border border-white/5 relative group">
-                        <p className="text-gray-500">Local Video</p>
-                        <div className="absolute bottom-4 left-4 text-xs bg-black/50 px-2 py-1 rounded">You</div>
-                    </div>
-                    <div className="bg-gray-900 rounded-xl flex items-center justify-center border border-white/5 relative group">
-                        <p className="text-gray-500">Remote Participant</p>
-                        <div className="absolute bottom-4 left-4 text-xs bg-black/50 px-2 py-1 rounded">Customer</div>
-                    </div>
+            <div className="flex-1 p-4 md:p-6 flex items-center justify-center">
+                <div className={`w-full h-full max-h-[85vh] grid gap-4 ${
+                    participants.length === 1 ? "grid-cols-1 max-w-4xl" : "grid-cols-1 md:grid-cols-2 max-w-7xl"
+                } mx-auto transition-all duration-300 ease-in-out`}>
+                    
+                    {participants.map(p => (
+                        <div key={p.sessionId} className="bg-[#3c4043] rounded-xl overflow-hidden shadow-lg border border-white/5 relative group flex-1">
+                            <ParticipantView
+                                participant={p}
+                                className="w-full h-full object-cover"
+                            />
+                            {/* Google Meet style Name Tag */}
+                            <div className="absolute bottom-4 left-4">
+                                <div className="bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-md text-white text-sm font-medium tracking-wide flex items-center gap-2">
+                                    {p.isSpeaking && <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />}
+                                    {p.name || (p.isLocalParticipant ? 'You' : 'Customer')}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+
+                    {/* Waiting state if only 1 participant */}
+                    {participants.length === 1 && (
+                        <div className="bg-[#3c4043]/40 rounded-xl overflow-hidden border border-white/5 relative flex flex-col items-center justify-center gap-4 text-center p-8">
+                            <div className="h-16 w-16 bg-blue-500/10 rounded-full flex items-center justify-center mb-2">
+                                <Users className="h-8 w-8 text-[#8ab4f8]" />
+                            </div>
+                            <h3 className="text-2xl font-normal text-white">Waiting for others to join</h3>
+                            <p className="text-[#9aa0a6] text-base max-w-[300px]">
+                                Share the meeting link with the customer you want to coach.
+                            </p>
+                            <Button variant="secondary" className="mt-4 bg-[#8ab4f8] text-[#202124] hover:bg-[#aecbfa] font-medium" onClick={() => setShowInfo(true)}>
+                                <Copy className="mr-2 h-4 w-4" />
+                                Copy joining info
+                            </Button>
+                        </div>
+                    )}
                 </div>
             </div>
 
             {/* 3. Live Transcript Overlay */}
-            <div className="absolute top-24 left-1/2 -translate-x-1/2 w-full max-w-2xl z-30 pointer-events-none">
+            <div className="absolute bottom-28 left-1/2 -translate-x-1/2 w-full max-w-3xl z-30 pointer-events-none px-4">
                 <LiveTranscript text={transcript} />
             </div>
 
             {/* 4. AI Popups (Transient) */}
-            <AIHintPopup hint={latestHint} />
+            <AIHintPopup hint={latestHint} hintVersion={aiSuggestions.length} />
 
             {/* 5. AI History Panel (Persistent) */}
             <AISuggestionsPanel suggestions={aiSuggestions} />
@@ -77,11 +122,58 @@ export default function CallUI() {
             <Controls
                 isRecording={isRecording}
                 onToggleAudio={() => isRecording ? stopAudio() : startAudio()}
-                // Handlers for other controls can be stubs or connected as needed
-                scaleMode="cover"
-                onToggleScale={() => { }}
-                onToggleSidebar={() => { }}
+                onToggleSidebar={() => setShowInfo(true)}
             />
+
+            {/* DEBUG: Force Suggestion */}
+            <Button
+                variant="ghost"
+                size="sm"
+                className="fixed top-4 right-4 z-50 text-[10px] text-zinc-700 hover:text-white"
+                onClick={() => {
+                    const ws = (window as any).debugWs;
+                    if (ws && ws.readyState === 1) {
+                        ws.send(JSON.stringify({ type: 'debug_force_hint' }));
+                    } else {
+                        toast.error("WS not ready for debug");
+                    }
+                }}
+            >
+                [Debug: Force Suggestion]
+            </Button>
+
+            {/* 7. Info Dialog */}
+            <Dialog open={showInfo} onOpenChange={setShowInfo}>
+                <DialogContent className="bg-zinc-900 border-zinc-800 text-white">
+                    <DialogHeader>
+                        <DialogTitle>Meeting Info</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between p-3 bg-zinc-800 rounded-lg">
+                            <span className="text-sm text-zinc-400 truncate max-w-[200px]">{window.location.href.replace(window.location.origin, process.env.NEXT_PUBLIC_APP_URL || window.location.origin)}</span>
+                            <Button size="sm" onClick={copyInviteLink}>
+                                <Copy className="h-4 w-4 mr-2" />
+                                Copy
+                            </Button>
+                        </div>
+
+                        <div>
+                            <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                                <Users className="h-4 w-4" />
+                                Participants ({participants.length})
+                            </h4>
+                            <div className="space-y-2">
+                                {participants.map(p => (
+                                    <div key={p.sessionId} className="flex items-center gap-2 text-sm">
+                                        <div className="h-2 w-2 rounded-full bg-green-500" />
+                                        <span>{p.name} {p.isLocalParticipant && '(You)'}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

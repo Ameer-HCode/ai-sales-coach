@@ -42,14 +42,14 @@ export default function Controls({ onToggleSidebar, scaleMode, onToggleScale, is
     if (!call) return null;
 
     return (
-        <div className="group absolute bottom-0 left-0 right-0 flex items-center justify-center gap-4 p-6 bg-gradient-to-t from-black/90 via-black/50 to-transparent z-30 transition-opacity hover:opacity-100">
+        <div className="relative bottom-0 left-0 right-0 flex items-center justify-center gap-3 p-4 bg-[#202124] z-30 transition-all border-t border-[#3c4043]">
             {/* Mic Toggle */}
             <Button
                 variant={isMicrophoneMute ? "destructive" : "secondary"}
                 size="icon"
                 className={cn(
-                    "rounded-full h-12 w-12 border border-transparent",
-                    isMicrophoneMute ? "bg-red-500 hover:bg-red-600" : "bg-slate-700/50 text-white hover:bg-slate-600"
+                    "rounded-full h-11 w-11 border-none transition-colors duration-200",
+                    isMicrophoneMute ? "bg-[#ea4335] hover:bg-[#d93025] text-white" : "bg-[#3c4043] text-white hover:bg-[#4a4d51]"
                 )}
                 onClick={() => microphone.toggle()}
             >
@@ -65,8 +65,8 @@ export default function Controls({ onToggleSidebar, scaleMode, onToggleScale, is
                 variant={isCameraMute ? "destructive" : "secondary"}
                 size="icon"
                 className={cn(
-                    "rounded-full h-12 w-12 border border-transparent",
-                    isCameraMute ? "bg-red-500 hover:bg-red-600" : "bg-slate-700/50 text-white hover:bg-slate-600"
+                    "rounded-full h-11 w-11 border-none transition-colors duration-200",
+                    isCameraMute ? "bg-[#ea4335] hover:bg-[#d93025] text-white" : "bg-[#3c4043] text-white hover:bg-[#4a4d51]"
                 )}
                 onClick={() => camera.toggle()}
             >
@@ -82,7 +82,7 @@ export default function Controls({ onToggleSidebar, scaleMode, onToggleScale, is
                 <Button
                     variant="secondary"
                     size="icon"
-                    className="rounded-full h-12 w-12 bg-slate-700/50 text-white hover:bg-slate-600 border-none"
+                    className="rounded-full h-11 w-11 bg-[#3c4043] text-white hover:bg-[#4a4d51] border-none"
                     onClick={handleFlipCamera}
                 >
                     <RefreshCcw className="h-5 w-5" />
@@ -92,7 +92,7 @@ export default function Controls({ onToggleSidebar, scaleMode, onToggleScale, is
             {/* Screen Share (Pill Style) */}
             <Button
                 variant="secondary"
-                className="rounded-full h-12 px-6 bg-slate-700/50 text-white hover:bg-slate-600 gap-2"
+                className="rounded-full h-11 px-5 bg-[#3c4043] text-white hover:bg-[#4a4d51] border-none gap-2"
                 onClick={() => call.screenShare.toggle()}
             >
                 <MonitorUp className="h-5 w-5" />
@@ -102,7 +102,7 @@ export default function Controls({ onToggleSidebar, scaleMode, onToggleScale, is
             <Button
                 variant="secondary"
                 size="icon"
-                className="rounded-full h-12 w-12"
+                className="rounded-full h-11 w-11 bg-[#3c4043] text-white hover:bg-[#4a4d51] border-none"
                 onClick={onToggleSidebar}
             >
                 <Info className="h-5 w-5" />
@@ -113,22 +113,22 @@ export default function Controls({ onToggleSidebar, scaleMode, onToggleScale, is
                 <Button
                     variant={isRecording ? "default" : "destructive"} // Green/Blue if on, Red if off/error
                     className={cn(
-                        "rounded-full h-12 px-4 gap-2 border border-white/10",
+                        "rounded-full h-11 px-4 gap-2 border-none transition-colors duration-200 ml-2",
                         isRecording
-                            ? "bg-indigo-600 hover:bg-indigo-500 text-white animate-pulse"
-                            : "bg-gray-700 text-gray-400 hover:bg-gray-600"
+                            ? "bg-[#8ab4f8]/20 hover:bg-[#8ab4f8]/30 text-[#8ab4f8]"
+                            : "bg-[#3c4043] text-[#9aa0a6] hover:bg-[#4a4d51]"
                     )}
                     onClick={onToggleAudio}
                 >
-                    <div className={cn("w-2 h-2 rounded-full", isRecording ? "bg-white" : "bg-red-500")} />
-                    <span className="font-bold text-xs">{isRecording ? "AI LISTENING" : "AI PAUSED"}</span>
+                    <div className={cn("w-2 h-2 rounded-full", isRecording ? "bg-[#8ab4f8] animate-pulse" : "bg-red-500")} />
+                    <span className="font-medium text-[13px] tracking-wide">{isRecording ? "AI LISTENING" : "AI PAUSED"}</span>
                 </Button>
             )}
 
             <Button
                 variant="destructive"
                 size="icon"
-                className="rounded-full h-12 w-12"
+                className="rounded-full h-11 w-11 bg-[#ea4335] hover:bg-[#d93025] ml-4 transition-colors"
                 onClick={async () => {
                     await call.leave();
                     router.push("/dashboard");

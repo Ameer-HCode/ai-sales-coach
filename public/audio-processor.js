@@ -4,7 +4,7 @@ class AudioProcessor extends AudioWorkletProcessor {
         this.buffer = [];
         this.maxBufferPackets = 50;  // Max ~1.5s buffer (safety)
         this.packetSize = 512;       // 32ms @ 16kHz
-        this.silenceThreshold = 0.01;
+        this.silenceThreshold = 0.004;  // Lowered from 0.01 — was cutting off quiet voices
         this.consecutiveSilence = 0;
     }
 
@@ -59,8 +59,8 @@ class AudioProcessor extends AudioWorkletProcessor {
 
             if (maxRms < this.silenceThreshold) {
                 this.consecutiveSilence++;
-                // Allow 10 frames (~300ms) trail
-                if (this.consecutiveSilence > 10) {
+                // Allow 25 frames (~750ms) trail before cutting — was 10 frames
+                if (this.consecutiveSilence > 25) {
                     // Still send RMS update for UI even if we drop audio?
                     // Yes, UI needs to know silence.
                     this.port.postMessage({ type: "level", rmsL, rmsR });

@@ -31,7 +31,8 @@ export default function StartCallPage() {
         setIsCreating(true);
         try {
             const id = await createCallId();
-            const link = `${window.location.origin}/call/${id}`;
+            const originUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+            const link = `${originUrl}/call/${id}`;
             setCreatedCallId(id);
             setMeetingLink(link);
             setIsModalOpen(true);

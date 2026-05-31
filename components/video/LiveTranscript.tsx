@@ -10,9 +10,9 @@ export default function LiveTranscript({ text }: LiveTranscriptProps) {
     if (!text) return null;
 
     return (
-        <div className="absolute bottom-28 left-4 right-4 md:left-[50%] md:translate-x-[-50%] md:max-w-xl text-center z-50 pointer-events-none">
-            <div className="bg-black/60 backdrop-blur-md text-white rounded-xl px-4 py-3 shadow-lg transition-all duration-200">
-                <p className="text-lg md:text-xl font-medium leading-relaxed">
+        <div className="flex justify-center w-full z-50 pointer-events-none">
+            <div className="bg-black/70 text-white rounded px-5 py-2 shadow-sm transition-all duration-200 inline-block text-center max-w-3xl">
+                <p className="text-xl md:text-2xl font-normal leading-relaxed tracking-wide">
                     {text}
                 </p>
             </div>

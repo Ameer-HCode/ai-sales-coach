@@ -1,6 +1,7 @@
 "use client"
 
-import { Bell, Search, User } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Bell, Search, User, LogOut } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,8 +14,22 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { MobileSidebar } from "@/components/layout/sidebar"
+import { useUser, useClerk } from "@clerk/nextjs"
 
 export function Navbar() {
+    const { user } = useUser();
+    const { signOut } = useClerk();
+
+    const displayName = user?.fullName ||
+        (user?.firstName ? `${user.firstName} ${user.lastName ?? ""}` : null) ||
+        user?.emailAddresses?.[0]?.emailAddress;
+
+    const email = user?.emailAddresses?.[0]?.emailAddress;
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => setMounted(true), []);
+
+    const initials = mounted && displayName ? displayName.slice(0, 2).toUpperCase() : "U";
+
     return (
         <div className="flex items-center p-4 border-b h-16 bg-white">
             <MobileSidebar />
@@ -38,17 +53,17 @@ export function Navbar() {
                     <DropdownMenuTrigger asChild>
                         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                             <Avatar className="h-8 w-8">
-                                <AvatarImage src="/avatars/01.png" alt="@user" />
-                                <AvatarFallback className="bg-indigo-100 text-indigo-600">AH</AvatarFallback>
+                                <AvatarImage src={user?.imageUrl} alt={displayName || "User"} />
+                                <AvatarFallback className="bg-indigo-100 text-indigo-600">{initials}</AvatarFallback>
                             </Avatar>
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent className="w-56" align="end" forceMount>
+                    <DropdownMenuContent className="w-64" align="end" forceMount>
                         <DropdownMenuLabel className="font-normal">
                             <div className="flex flex-col space-y-1">
-                                <p className="text-sm font-medium leading-none">Ameer Hamza</p>
-                                <p className="text-xs leading-none text-muted-foreground">
-                                    hamzaakhtar018@gmail.com
+                                <p className="text-sm font-medium leading-none truncate">{displayName}</p>
+                                <p className="text-xs leading-none text-muted-foreground truncate">
+                                    {email}
                                 </p>
                             </div>
                         </DropdownMenuLabel>
@@ -60,7 +75,11 @@ export function Navbar() {
                             Settings
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-600">
+                        <DropdownMenuItem
+                            className="text-red-600 cursor-pointer focus:text-red-600"
+                            onClick={() => signOut({ redirectUrl: "/" })}
+                        >
+                            <LogOut className="mr-2 h-4 w-4" />
                             Log out
                         </DropdownMenuItem>
                     </DropdownMenuContent>
