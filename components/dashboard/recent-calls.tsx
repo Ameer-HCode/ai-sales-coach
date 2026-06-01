@@ -18,7 +18,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Search, Eye, Video } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
 import { getCallsData } from "@/actions/get-calls"
+import { Sparkles, TrendingUp, AlertTriangle, ThumbsUp } from "lucide-react"
 
 
 
@@ -38,10 +42,14 @@ const getStatusColor = (status: string) => {
 export function RecentCalls() {
     const [recentCalls, setRecentCalls] = useState<any[]>([])
     const [isLoading, setIsLoading] = useState(true)
+    const [selectedCall, setSelectedCall] = useState<any>(null)
 
     useEffect(() => {
-        getCallsData().then(data => {
+        getCallsData(Date.now()).then(data => {
             setRecentCalls(data)
+            setIsLoading(false)
+        }).catch(err => {
+            console.error("Failed to load calls:", err)
             setIsLoading(false)
         })
     }, [])
@@ -128,7 +136,7 @@ export function RecentCalls() {
                                                 {call.summary}
                                             </TableCell>
                                             <TableCell className="text-right">
-                                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedCall(call)}>
                                                     <Eye className="h-4 w-4 text-slate-500" />
                                                 </Button>
                                             </TableCell>
@@ -156,6 +164,89 @@ export function RecentCalls() {
                     </TabsContent>
                 </Tabs>
             </CardContent>
+
+            <Dialog open={!!selectedCall} onOpenChange={(open) => !open && setSelectedCall(null)}>
+                <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl">{selectedCall?.title}</DialogTitle>
+                        <DialogDescription>
+                            Date: {selectedCall?.date} • Duration: {selectedCall?.duration}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <ScrollArea className="flex-1 pr-4">
+                        <div className="space-y-6 pb-4">
+                            {/* AI Summary Section */}
+                            <div>
+                                <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                                    <Sparkles className="h-5 w-5 text-indigo-600" />
+                                    AI Call Summary
+                                </h3>
+                                <p className="text-sm text-slate-600 bg-slate-50 p-4 rounded-lg border">
+                                    {selectedCall?.fullSummaryJson?.summary || "No summary available."}
+                                </p>
+                            </div>
+
+                            {/* Detailed Insights Grid */}
+                            {selectedCall?.fullSummaryJson && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Objections */}
+                                    <div className="bg-amber-50 border border-amber-100 p-4 rounded-lg">
+                                        <h4 className="font-semibold text-amber-900 mb-2 flex items-center gap-2">
+                                            <AlertTriangle className="h-4 w-4" /> Objections Handled
+                                        </h4>
+                                        <ul className="list-disc pl-5 text-sm text-amber-800 space-y-1">
+                                            {selectedCall.fullSummaryJson.objections?.map((obj: string, i: number) => (
+                                                <li key={i}>{obj}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                    
+                                    {/* Opportunities */}
+                                    <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-lg">
+                                        <h4 className="font-semibold text-emerald-900 mb-2 flex items-center gap-2">
+                                            <ThumbsUp className="h-4 w-4" /> Opportunities
+                                        </h4>
+                                        <ul className="list-disc pl-5 text-sm text-emerald-800 space-y-1">
+                                            {selectedCall.fullSummaryJson.opportunities?.map((opp: string, i: number) => (
+                                                <li key={i}>{opp}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+
+                                    {/* Key Points */}
+                                    <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg md:col-span-2">
+                                        <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                                            <TrendingUp className="h-4 w-4" /> Key Takeaways & Next Steps
+                                        </h4>
+                                        <ul className="list-disc pl-5 text-sm text-blue-800 space-y-1">
+                                            {selectedCall.fullSummaryJson.key_points?.map((kp: string, i: number) => (
+                                                <li key={i}>{kp}</li>
+                                            ))}
+                                            {selectedCall.fullSummaryJson.next_steps?.map((ns: string, i: number) => (
+                                                <li key={i + 100}>{ns}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </div>
+                            )}
+
+                            <Separator />
+
+                            {/* Full Transcript */}
+                            <div>
+                                <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                                    <Search className="h-5 w-5 text-slate-600" />
+                                    Full Transcript
+                                </h3>
+                                <div className="bg-slate-900 text-slate-300 p-4 rounded-lg text-sm font-mono whitespace-pre-wrap">
+                                    {selectedCall?.transcript || "No transcript available for this call."}
+                                </div>
+                            </div>
+                        </div>
+                    </ScrollArea>
+                </DialogContent>
+            </Dialog>
         </Card>
     )
 }

@@ -4,10 +4,11 @@ import { db } from '@/lib/db';
 import { calls, customers, customerMemory, callParticipants } from '@/backend/db/schema';
 import { desc, eq } from 'drizzle-orm';
 
-export async function getCallsData() {
-    const allCalls = await db.select().from(calls).orderBy(desc(calls.startedAt));
+export async function getCallsData(timestamp?: number) {
+    const allCalls = await db.select().from(calls).orderBy(desc(calls.startedAt)).limit(15);
     
-    const formattedCalls = await Promise.all(allCalls.map(async (c) => {
+    const formattedCalls = [];
+    for (const c of allCalls) {
         let customerName = "Unknown Customer";
         if (c.customerId) {
             const cust = await db.select().from(customers).where(eq(customers.id, c.customerId)).limit(1);
@@ -41,7 +42,7 @@ export async function getCallsData() {
         
         const summaryJson = memory.length > 0 ? (memory[0].summaryJson as any) : null;
         
-        return {
+        formattedCalls.push({
             id: c.id,
             title: `Call with ${customerName}`,
             name: customerName,
@@ -55,9 +56,11 @@ export async function getCallsData() {
             sentiment: memory.length > 0 ? "Analyzed" : "N/A",
             type: "video",
             recording: true,
-            summary: summaryJson ? summaryJson.summary : "No summary available."
-        };
-    }));
+            summary: summaryJson ? summaryJson.summary : "No summary available.",
+            fullSummaryJson: summaryJson,
+            transcript: c.transcript
+        });
+    }
 
     return formattedCalls;
 }

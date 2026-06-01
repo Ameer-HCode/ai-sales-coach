@@ -18,8 +18,11 @@ export function AiInsights() {
     const [isLoading, setIsLoading] = useState(true)
 
     useEffect(() => {
-        getInsightsData().then(data => {
+        getInsightsData(Date.now()).then(data => {
             setInsights(data)
+            setIsLoading(false)
+        }).catch(err => {
+            console.error("Failed to load insights:", err)
             setIsLoading(false)
         })
     }, [])

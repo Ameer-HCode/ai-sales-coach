@@ -5,7 +5,8 @@ import { calls, customerMemory } from '@/backend/db/schema';
 import { desc, eq, and, gte, sql } from 'drizzle-orm';
 import { Phone, CheckCircle2, Clock, Lightbulb } from "lucide-react";
 
-export async function getKpisData() {
+export async function getKpisData(timestamp?: number) {
+    
     // 1. Total Calls Today
     const today = new Date();
     today.setHours(0, 0, 0, 0);

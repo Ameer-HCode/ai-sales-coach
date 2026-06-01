@@ -62,6 +62,12 @@ export function Sidebar({ className }: SidebarProps) {
             href: "/settings",
             active: pathname === "/settings",
         },
+        {
+            label: "Pricing",
+            icon: BarChart3,
+            href: "/pricing",
+            active: pathname === "/pricing",
+        },
     ]
 
     const SidebarContent = () => (
@@ -95,7 +101,9 @@ export function Sidebar({ className }: SidebarProps) {
                 <div className="bg-slate-800/50 rounded-lg p-4 mb-4">
                     <h4 className="text-sm font-semibold mb-2">Pro Plan</h4>
                     <p className="text-xs text-zinc-400 mb-3">You have 120 call minutes remaining this month.</p>
-                    <Button size="sm" variant="secondary" className="w-full">Upgrade</Button>
+                    <Link href="/pricing">
+                        <Button size="sm" variant="secondary" className="w-full">Upgrade</Button>
+                    </Link>
                 </div>
             </div>
         </div>

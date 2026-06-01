@@ -11,6 +11,11 @@ import {
 import { tokenProvider } from "@/actions/stream";
 import { Loader2, Video, User as UserIcon } from "lucide-react";
 import dynamic from "next/dynamic";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { useUser } from "@clerk/nextjs";
 
 const Lobby = dynamic(() => import("@/components/video/Lobby"), {
     ssr: false,
@@ -29,11 +34,6 @@ const CallUI = dynamic(() => import("@/components/video/CallUI"), {
         </div>
     )
 });
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { useUser } from "@clerk/nextjs";
 
 const apiKey = process.env.NEXT_PUBLIC_STREAM_API_KEY!;
 

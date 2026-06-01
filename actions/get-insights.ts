@@ -5,7 +5,7 @@ import { customerMemory, calls } from '@/backend/db/schema';
 import { desc, eq } from 'drizzle-orm';
 import { Sparkles, TrendingUp, AlertTriangle, ThumbsUp } from "lucide-react";
 
-export async function getInsightsData() {
+export async function getInsightsData(timestamp?: number) {
     const memories = await db.select().from(customerMemory).orderBy(desc(customerMemory.createdAt)).limit(10);
     
     let insightsList: any[] = [];
@@ -15,10 +15,8 @@ export async function getInsightsData() {
         const summary = mem.summaryJson as any;
         if (!summary) continue;
 
-        // Try to fetch call info for "time" context (simplified to date)
-        const callData = await db.select().from(calls).where(eq(calls.id, mem.callId!)).limit(1);
-        const timeStr = callData.length > 0 && callData[0].startedAt 
-            ? new Date(callData[0].startedAt).toLocaleDateString() 
+        const timeStr = mem.createdAt 
+            ? new Date(mem.createdAt).toLocaleDateString() 
             : "Recent";
 
         if (summary.objections && Array.isArray(summary.objections)) {

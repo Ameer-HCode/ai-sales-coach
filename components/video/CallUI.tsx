@@ -46,7 +46,8 @@ export default function CallUI() {
     } = useAudioStream(
         callId,
         localParticipant?.userId || "guest",
-        participants.length
+        participants.length,
+        isHost
     );
 
     const latestHint = aiSuggestions.length > 0 ? aiSuggestions[aiSuggestions.length - 1].hint : null;
@@ -60,11 +61,13 @@ export default function CallUI() {
 
     return (
         <div className="flex-1 flex flex-col relative bg-[#202124] overflow-hidden h-screen w-full">
-            {/* 1. Diagnostics Overlay */}
-            <RealtimeDiagnostics
-                stats={diagnostics}
-                mode={participants.length > 2 ? 'mono' : 'stereo'}
-            />
+            {/* 1. Diagnostics Overlay - Only for Host */}
+            {isHost && (
+                <RealtimeDiagnostics
+                    stats={diagnostics}
+                    mode={participants.length > 2 ? 'mono' : 'stereo'}
+                />
+            )}
 
             {/* 2. Main Video Area */}
             <div className="flex-1 p-4 md:p-6 flex items-center justify-center">
@@ -112,16 +115,16 @@ export default function CallUI() {
                 <LiveTranscript text={transcript} />
             </div>
 
-            {/* 4. AI Popups (Transient) */}
-            <AIHintPopup hint={latestHint} hintVersion={aiSuggestions.length} />
+            {/* 4. AI Popups (Transient) - Only for Host */}
+            {isHost && <AIHintPopup hint={latestHint} hintVersion={aiSuggestions.length} />}
 
-            {/* 5. AI History Panel (Persistent) */}
-            <AISuggestionsPanel suggestions={aiSuggestions} />
+            {/* 5. AI History Panel (Persistent) - Only for Host */}
+            {isHost && <AISuggestionsPanel suggestions={aiSuggestions} />}
 
             {/* 6. Controls Bar */}
             <Controls
                 isRecording={isRecording}
-                onToggleAudio={() => isRecording ? stopAudio() : startAudio()}
+                onToggleAudio={isHost ? () => isRecording ? stopAudio() : startAudio() : undefined}
                 onToggleSidebar={() => setShowInfo(true)}
             />
 

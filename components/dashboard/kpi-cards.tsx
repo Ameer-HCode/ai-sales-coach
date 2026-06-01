@@ -16,7 +16,9 @@ export function KpiCards() {
     const [kpiData, setKpiData] = useState<any[]>([])
 
     useEffect(() => {
-        getKpisData().then(setKpiData)
+        getKpisData(Date.now()).then(setKpiData).catch(err => {
+            console.error("Failed to load KPIs:", err)
+        })
     }, [])
 
     return (

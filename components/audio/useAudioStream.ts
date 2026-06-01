@@ -28,7 +28,7 @@ interface AudioStreamHook {
     diagnostics: Diagnostics;
 }
 
-export function useAudioStream(meetingId: string, userId: string, participantCount: number): AudioStreamHook {
+export function useAudioStream(meetingId: string, userId: string, participantCount: number, isHost: boolean = true): AudioStreamHook {
     const [isRecording, setIsRecording] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [transcript, setTranscript] = useState<string>("");
@@ -107,18 +107,16 @@ export function useAudioStream(meetingId: string, userId: string, participantCou
     // WEBSOCKET MANAGER (Detailed Logging + Backoff)
     // ----------------------------------------------------------------
     const connectWebSocket = useCallback(() => {
+        if (!isHost) return;
         if (wsInstance.current?.readyState === WebSocket.OPEN || wsInstance.current?.readyState === WebSocket.CONNECTING) return;
 
         shouldReconnect.current = true;
         setDiagnostics(prev => ({ ...prev, wsState: retryCount.current > 0 ? 'RECONNECTING' : 'CONNECTING' }));
 
-        const isLocal = window.location.hostname === "localhost";
-        const wsUrl = process.env.NEXT_PUBLIC_WS_URL || (isLocal ? "ws://localhost:5001" : "");
-
-        if (!wsUrl) {
-            setError("No WebSocket URL");
-            return;
-        }
+        const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+        const wsUrl = isLocal 
+            ? "ws://localhost:5001" 
+            : "wss://marylee-brotherlike-rosily.ngrok-free.dev";
 
         console.log(`[WS] Connecting... Attempt ${retryCount.current + 1}`);
         const ws = new WebSocket(wsUrl);
@@ -245,6 +243,7 @@ export function useAudioStream(meetingId: string, userId: string, participantCou
 
 
     const startAudio = async () => {
+        if (!isHost) return;
         if (isRecording) return;
 
         // Ensure WS is connecting/connected
@@ -343,13 +342,13 @@ export function useAudioStream(meetingId: string, userId: string, participantCou
 
     // Auto-Start
     useEffect(() => {
-        if (meetingId && userId && !isRecording && !audioContextRef.current) {
+        if (isHost && meetingId && userId && !isRecording && !audioContextRef.current) {
             const t = setTimeout(() => {
                 if (isMounted.current) startAudio();
             }, 1000);
             return () => clearTimeout(t);
         }
-    }, [meetingId, userId]);
+    }, [meetingId, userId, isHost]);
 
     return { isRecording, startAudio, stopAudio, error, transcript, aiSuggestions, diagnostics };
 }
