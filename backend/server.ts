@@ -44,8 +44,8 @@ async function handleCallEnd(callId: string, ws: WebSocket | null) {
 
         // 3. Send to Groq for Summary
         console.log("GENERATING SUMMARY JSON...");
-        const systemPrompt = `You are an expert AI Sales Analyst.
-You will receive a complete transcript of a sales call.
+        const systemPrompt = `You are an expert Real Estate AI Sales Analyst.
+You will receive a complete transcript of a real estate sales call.
 Your job is to produce a strictly formatted JSON summary that will be stored in long-term memory.
 
 RULES:
@@ -64,7 +64,7 @@ JSON KEYS REQUIRED:
 "recommendations"
 "next_steps"
 
-All arrays must contain short bullet-style items (as strings).`;
+All arrays must contain short bullet-style items (as strings). Focus on real estate specifics (property details, budget, timeline, locations).`;
 
         const completion = await groq.chat.completions.create({
             messages: [
@@ -139,6 +139,7 @@ wss.on('connection', (ws: WebSocket) => {
 
     // Memory Context
     let previousContext = "";
+    const callTranscriptContext: string[] = []; // Store rolling context
 
     // Performance Tracking
     const latencies: any = { dgStart: 0, dgEnd: 0 };
@@ -263,14 +264,17 @@ wss.on('connection', (ws: WebSocket) => {
                 ws.send(JSON.stringify(payload));
 
                 // GROQ LIVE SUGGESTION
-                // ✅ FIX: Only trigger on speech_final (NOT isFinal) to avoid duplicate Groq calls.
-                // speech_final fires when Deepgram detects end-of-utterance,
-                // is_final fires when the transcript is finalized — often both fire for same utterance.
                 const isSpeechFinal = data.speech_final;
 
-                if (isSpeechFinal) {
-                    console.log(`🎯 DETECTED SPEECH END (speech_final) by ${speaker}. Triggering Groq...`);
-                    runLiveGroqSuggestion(transcript, ws, previousContext);
+                if (isFinal) {
+                    callTranscriptContext.push(`${speaker === 'owner' ? 'Agent' : 'Client'}: ${transcript}`);
+                    if (callTranscriptContext.length > 20) callTranscriptContext.shift();
+                }
+
+                if (isSpeechFinal && speaker === "client") {
+                    console.log(`🎯 DETECTED CLIENT SPEECH END. Triggering Groq...`);
+                    const recentContext = callTranscriptContext.join('\n');
+                    runLiveGroqSuggestion(transcript, recentContext, ws, previousContext);
                 }
 
                 // DB INSERTS
@@ -401,7 +405,7 @@ Previous Context: ${brief.previousContext || 'N/A'}
 
                 if (msg.type === 'debug_force_hint') {
                     console.log("🚀 DEBUG: FORCING AI HINT...");
-                    runLiveGroqSuggestion("Tell me more about your pricing structure and implementation timeline.", ws, previousContext);
+                    runLiveGroqSuggestion("Tell me more about your pricing structure and implementation timeline.", callTranscriptContext.join('\n'), ws, previousContext);
                 }
             } catch (e) { console.error('[WS] Failed to parse JSON message:', e); }
             return;
@@ -438,7 +442,7 @@ Previous Context: ${brief.previousContext || 'N/A'}
 });
 
 // --- LIVE SUGGESTION LOGIC ---
-async function runLiveGroqSuggestion(clientText: string, ws: WebSocket, memoryContext: string) {
+async function runLiveGroqSuggestion(clientText: string, liveTranscriptContext: string, ws: WebSocket, memoryContext: string) {
     console.log("GROQ PROMPT SENT:", clientText); // Strict Log
 
     if (!process.env.GROQ_API_KEY) {
@@ -448,16 +452,20 @@ async function runLiveGroqSuggestion(clientText: string, ws: WebSocket, memoryCo
     if (!clientText || clientText.trim().length === 0) return;
 
     try {
-        const systemPrompt = `You are a world-class AI Sales Coach advising a business owner during a live call.
+        const systemPrompt = `You are an elite Real Estate AI Sales Coach advising a real estate agent during a live call.
 Here is the context and briefing for this specific call:
-${memoryContext || "None provided. Use general best practices."}
+${memoryContext || "None provided. Use general real estate best practices."}
+
+Recent conversation history:
+${liveTranscriptContext}
 
 Your job:
-- Provide ONE short, highly specific, tactical suggestion to the business owner based on what the client just said.
-- AVOID generic advice like "Acknowledge their concern".
-- Give them exact words or specific value propositions to use (e.g., "Pivot to the 3-month ROI guarantee", or "Ask them exactly how much the current manual process is costing them per week").
-- If they mention price, give a specific strategy to build value.
-- Do NOT hallucinate.
+- Provide ONE short, highly specific, tactical suggestion to the agent based on what the client just said.
+- Use real estate terminology (comps, appraisals, escrow, contingencies, ROI, bedrooms, square footage).
+- If they mention a specific property price or feature (e.g. $50,000 vs $100,000), remember it and use it in your advice. Address why the price differs if asked.
+- Give them exact words or specific value propositions to use.
+- Do NOT output generic advice like "Acknowledge their concern".
+- Do NOT hallucinate objections if the client hasn't made them.
 - Do NOT output JSON.
 - Do NOT greet or introduce yourself.
 

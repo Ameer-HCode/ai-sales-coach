@@ -7,6 +7,9 @@ import {
 import { Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff, RefreshCcw, Info, Maximize, Minimize } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Disc } from "lucide-react";
+import { useState, useRef } from "react";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
 interface ControlsProps {
@@ -25,6 +28,64 @@ export default function Controls({ onToggleSidebar, scaleMode, onToggleScale, is
 
     const { camera, isMute: isCameraMute, devices: cameraDevices, selectedDevice: selectedCamera } = useCameraState();
     const { microphone, isMute: isMicrophoneMute } = useMicrophoneState();
+
+    const [isScreenRecording, setIsScreenRecording] = useState(false);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const recordedChunksRef = useRef<BlobPart[]>([]);
+
+    const handleToggleScreenRecording = async () => {
+        if (isScreenRecording) {
+            // Stop recording
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+                mediaRecorderRef.current.stop();
+            }
+            setIsScreenRecording(false);
+        } else {
+            // Start recording
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+                recordedChunksRef.current = [];
+                const mediaRecorder = new MediaRecorder(stream);
+                mediaRecorderRef.current = mediaRecorder;
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        recordedChunksRef.current.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunksRef.current, {
+                        type: "video/webm",
+                    });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    document.body.appendChild(a);
+                    a.style.display = "none";
+                    a.href = url;
+                    a.download = `meeting_recording_${new Date().getTime()}.webm`;
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    setIsScreenRecording(false);
+                    toast.success("Recording saved to your device!");
+                };
+
+                stream.getVideoTracks()[0].onended = () => {
+                    if (mediaRecorderRef.current?.state === "recording") {
+                        mediaRecorderRef.current.stop();
+                    }
+                    setIsScreenRecording(false);
+                };
+
+                mediaRecorder.start();
+                setIsScreenRecording(true);
+                toast.success("Recording started");
+            } catch (err) {
+                console.error("Failed to start recording", err);
+                toast.error("Screen recording cancelled or failed.");
+            }
+        }
+    };
 
     const handleFlipCamera = async () => {
         if (!cameraDevices || cameraDevices.length < 2) return;
@@ -106,6 +167,21 @@ export default function Controls({ onToggleSidebar, scaleMode, onToggleScale, is
                 onClick={onToggleSidebar}
             >
                 <Info className="h-5 w-5" />
+            </Button>
+
+            {/* Local Screen Recording */}
+            <Button
+                variant={isScreenRecording ? "destructive" : "secondary"}
+                className={cn(
+                    "rounded-full h-11 px-4 gap-2 border-none transition-colors duration-200",
+                    isScreenRecording ? "bg-[#ea4335] hover:bg-[#d93025] text-white" : "bg-[#3c4043] text-white hover:bg-[#4a4d51]"
+                )}
+                onClick={handleToggleScreenRecording}
+            >
+                <Disc className={cn("h-5 w-5", isScreenRecording && "animate-pulse")} />
+                <span className="hidden md:inline font-medium">
+                    {isScreenRecording ? "Finish Recording" : "Record"}
+                </span>
             </Button>
 
             {/* AI Audio Toggle (Custom Pipeline) */}

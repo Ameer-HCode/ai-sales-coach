@@ -70,7 +70,7 @@ export function PreCallBriefModal({ isOpen, onClose, isForLater, onCreatedForLat
                     <div className="grid gap-2">
                         <label className="text-sm font-medium leading-none">Meeting Topic</label>
                         <Input 
-                            placeholder="e.g. Final Pricing Negotiation" 
+                            placeholder="e.g. Property Viewing Negotiation" 
                             value={topic}
                             onChange={(e) => setTopic(e.target.value)}
                         />
@@ -78,7 +78,7 @@ export function PreCallBriefModal({ isOpen, onClose, isForLater, onCreatedForLat
                     <div className="grid gap-2">
                         <label className="text-sm font-medium leading-none">Customer's Main Problem</label>
                         <Input 
-                            placeholder="e.g. High churn rate with their current software" 
+                            placeholder="e.g. Needs more bedrooms but budget is tight" 
                             value={problem}
                             onChange={(e) => setProblem(e.target.value)}
                         />
@@ -86,7 +86,7 @@ export function PreCallBriefModal({ isOpen, onClose, isForLater, onCreatedForLat
                     <div className="grid gap-2">
                         <label className="text-sm font-medium leading-none">Our Proposed Solution</label>
                         <Input 
-                            placeholder="e.g. Automated AI Sales Coach Platform" 
+                            placeholder="e.g. The $100k suburban property with 2 extra bedrooms" 
                             value={solution}
                             onChange={(e) => setSolution(e.target.value)}
                         />
@@ -94,7 +94,7 @@ export function PreCallBriefModal({ isOpen, onClose, isForLater, onCreatedForLat
                     <div className="grid gap-2">
                         <label className="text-sm font-medium leading-none">Objection Handling Style</label>
                         <Input 
-                            placeholder="e.g. Aggressive ROI focus, or Consultative and Empathetic" 
+                            placeholder="e.g. ROI focus on property appreciation, or Consultative" 
                             value={handlingStyle}
                             onChange={(e) => setHandlingStyle(e.target.value)}
                         />
@@ -102,7 +102,7 @@ export function PreCallBriefModal({ isOpen, onClose, isForLater, onCreatedForLat
                     <div className="grid gap-2">
                         <label className="text-sm font-medium leading-none">Previous Context (Optional)</label>
                         <Textarea 
-                            placeholder="e.g. We met at a conference last month. They were worried about onboarding time." 
+                            placeholder="e.g. We previously discussed the $50k downtown condo, but they rejected it." 
                             value={previousContext}
                             onChange={(e: any) => setPreviousContext(e.target.value)}
                             className="resize-none"

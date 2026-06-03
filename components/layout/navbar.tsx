@@ -15,6 +15,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { MobileSidebar } from "@/components/layout/sidebar"
 import { useUser, useClerk } from "@clerk/nextjs"
+import { toast } from "sonner"
 
 export function Navbar() {
     const { user } = useUser();
@@ -44,7 +45,7 @@ export function Navbar() {
                     <Input placeholder="Search calls, leads..." className="pl-8 bg-slate-50 border-slate-200" />
                 </div>
 
-                <Button variant="ghost" size="icon" className="relative">
+                <Button variant="ghost" size="icon" className="relative" onClick={() => toast.info("No new notifications")}>
                     <Bell className="h-5 w-5 text-slate-600" />
                     <span className="absolute top-2 right-2 h-2 w-2 bg-red-500 rounded-full"></span>
                 </Button>
@@ -68,10 +69,10 @@ export function Navbar() {
                             </div>
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => toast.info("Profile coming soon!")}>
                             Profile
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => toast.info("Settings coming soon!")}>
                             Settings
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
