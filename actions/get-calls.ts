@@ -57,8 +57,7 @@ export async function getCallsData(timestamp?: number) {
             type: "video",
             recording: true,
             summary: summaryJson ? summaryJson.summary : "No summary available.",
-            fullSummaryJson: summaryJson,
-            transcript: c.transcript
+            fullSummaryJson: summaryJson
         });
     }
 

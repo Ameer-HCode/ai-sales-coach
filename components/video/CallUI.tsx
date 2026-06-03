@@ -72,14 +72,16 @@ export default function CallUI() {
             {/* 2. Main Video Area */}
             <div className="flex-1 p-4 md:p-6 flex items-center justify-center">
                 <div className={`w-full h-full max-h-[85vh] grid gap-4 ${
-                    participants.length === 1 ? "grid-cols-1 max-w-4xl" : "grid-cols-1 md:grid-cols-2 max-w-7xl"
+                    participants.length === 1 
+                    ? "grid-cols-1 grid-rows-1 max-w-4xl" 
+                    : "grid-cols-1 grid-rows-2 md:grid-cols-2 md:grid-rows-1 max-w-7xl"
                 } mx-auto transition-all duration-300 ease-in-out`}>
                     
                     {participants.map(p => (
                         <div key={p.sessionId} className="bg-[#3c4043] rounded-xl overflow-hidden shadow-lg border border-white/5 relative group flex-1">
                             <ParticipantView
                                 participant={p}
-                                className="w-full h-full object-cover"
+                                className="absolute inset-0 w-full h-full [&_video]:w-full [&_video]:h-full [&_video]:object-cover"
                             />
                             {/* Google Meet style Name Tag */}
                             <div className="absolute bottom-4 left-4">

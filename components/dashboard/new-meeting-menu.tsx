@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createCallId } from "@/actions/create-call";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -15,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Video, Link as LinkIcon, Plus, Copy, Check, Keyboard, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { PreCallBriefModal } from "./PreCallBriefModal";
 
 export function NewMeetingMenu() {
     const router = useRouter();
@@ -22,29 +22,13 @@ export function NewMeetingMenu() {
     const [generatedLink, setGeneratedLink] = useState("");
     const [hasCopied, setHasCopied] = useState(false);
     const [joinCode, setJoinCode] = useState("");
+    const [isBriefModalOpen, setIsBriefModalOpen] = useState(false);
+    const [isForLater, setIsForLater] = useState(false);
 
-    const handleStartInstant = async () => {
-        setIsCreating(true);
-        try {
-            const id = await createCallId();
-            router.push(`/call/${id}`);
-        } catch (error) {
-            console.error("Failed to create call", error);
-            toast.error("Failed to create meeting");
-            setIsCreating(false);
-        }
-    };
-
-    const handleCreateForLater = async (e: Event) => {
-        e.preventDefault(); // Prevent dropdown closing
-        try {
-            const id = await createCallId();
-            const originUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
-            const link = `${originUrl}/call/${id}`;
-            setGeneratedLink(link);
-        } catch (error) {
-            toast.error("Failed to generate link");
-        }
+    const handleOpenBrief = (forLater: boolean, e?: Event) => {
+        if (e) e.preventDefault();
+        setIsForLater(forLater);
+        setIsBriefModalOpen(true);
     };
 
     const handleCopyLink = () => {
@@ -66,6 +50,7 @@ export function NewMeetingMenu() {
     };
 
     return (
+        <>
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <Button className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2">
@@ -79,7 +64,7 @@ export function NewMeetingMenu() {
             }}>
                 {!generatedLink ? (
                     <>
-                        <DropdownMenuItem onSelect={(e) => handleCreateForLater(e)} className="gap-3 py-3 cursor-pointer">
+                        <DropdownMenuItem onSelect={(e) => handleOpenBrief(true, e)} className="gap-3 py-3 cursor-pointer">
                             <LinkIcon className="h-4 w-4 text-slate-500" />
                             <div className="flex flex-col">
                                 <span className="font-medium">Create a meeting for later</span>
@@ -87,7 +72,7 @@ export function NewMeetingMenu() {
                             </div>
                         </DropdownMenuItem>
 
-                        <DropdownMenuItem onSelect={handleStartInstant} className="gap-3 py-3 cursor-pointer">
+                        <DropdownMenuItem onSelect={() => handleOpenBrief(false)} className="gap-3 py-3 cursor-pointer">
                             <Plus className="h-4 w-4 text-slate-500" />
                             <div className="flex flex-col">
                                 <span className="font-medium">Start an instant meeting</span>
@@ -161,5 +146,12 @@ export function NewMeetingMenu() {
                 )}
             </DropdownMenuContent>
         </DropdownMenu>
+            <PreCallBriefModal 
+                isOpen={isBriefModalOpen} 
+                onClose={() => setIsBriefModalOpen(false)} 
+                isForLater={isForLater}
+                onCreatedForLater={(link) => setGeneratedLink(link)}
+            />
+        </>
     );
 }

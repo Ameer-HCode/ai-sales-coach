@@ -48,3 +48,15 @@ export const callParticipants = pgTable('call_participants', {
     role: text('role').notNull(), // 'host' | 'guest'
     joinedAt: timestamp('joined_at').defaultNow(),
 });
+
+// 6. Pre-Call AI Briefing Context - For specific meeting AI customization
+export const callContexts = pgTable('call_contexts', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    callId: uuid('call_id').references(() => calls.id).notNull(),
+    topic: text('topic'),
+    problem: text('problem'),
+    solution: text('solution'),
+    handlingStyle: text('handling_style'),
+    previousContext: text('previous_context'),
+    createdAt: timestamp('created_at').defaultNow(),
+});

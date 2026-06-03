@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Video, Keyboard, Link as LinkIcon, Plus, Calendar, Loader2, Copy, Check, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
+import { PreCallBriefModal } from "@/components/dashboard/PreCallBriefModal";
 
 export default function StartCallPage() {
     const router = useRouter();
@@ -26,22 +27,21 @@ export default function StartCallPage() {
     const [meetingLink, setMeetingLink] = useState("");
     const [hasCopied, setHasCopied] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isBriefModalOpen, setIsBriefModalOpen] = useState(false);
 
-    const handleStartCall = async () => {
-        setIsCreating(true);
-        try {
-            const id = await createCallId();
-            const originUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
-            const link = `${originUrl}/call/${id}`;
-            setCreatedCallId(id);
-            setMeetingLink(link);
-            setIsModalOpen(true);
-        } catch (error) {
-            console.error("Failed to create call", error);
-            toast.error("Failed to create meeting");
-        } finally {
-            setIsCreating(false);
+    const handleStartCall = () => {
+        setIsBriefModalOpen(true);
+    };
+
+    const handleBriefingComplete = (link: string) => {
+        setMeetingLink(link);
+        
+        // Extract ID from link for Join Now button
+        if (link.includes("/call/")) {
+            setCreatedCallId(link.split("/call/")[1]);
         }
+        
+        setIsModalOpen(true);
     };
 
     const handleCopyLink = () => {
@@ -91,14 +91,13 @@ export default function StartCallPage() {
                             size="lg"
                             className="h-14 gap-2 rounded-xl bg-indigo-600 px-8 text-lg font-semibold shadow-lg shadow-indigo-600/20 transition-all hover:scale-105 hover:bg-indigo-700"
                             onClick={handleStartCall}
-                            disabled={isCreating}
                         >
                             {isCreating ? (
                                 <Loader2 className="h-5 w-5 animate-spin" />
                             ) : (
                                 <Video className="h-5 w-5" />
                             )}
-                            New Meeting
+                            {isBriefModalOpen ? "Opening..." : "New Meeting"}
                         </Button>
 
                         <div className="flex items-center gap-4 sm:hidden">
@@ -218,6 +217,13 @@ export default function StartCallPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <PreCallBriefModal 
+                isOpen={isBriefModalOpen} 
+                onClose={() => setIsBriefModalOpen(false)} 
+                isForLater={true}
+                onCreatedForLater={handleBriefingComplete}
+            />
         </div>
     );
 }

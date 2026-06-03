@@ -52,6 +52,7 @@
     "@types/react-dom": "^19",
     "@types/ws": "^8.18.1",
     "cloudflared": "^0.7.1",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.0.6",
     "tailwindcss": "^4",

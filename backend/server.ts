@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
 import Groq from 'groq-sdk';
 import { db } from './db/index';
-import { callTranscripts, calls, customerMemory, customers } from './db/schema'; // Added required imports
+import { callTranscripts, calls, customerMemory, customers, callContexts } from './db/schema'; // Added required imports
 import { eq, and, desc } from 'drizzle-orm'; // Added required imports
 import path from 'path';
 
@@ -349,6 +349,24 @@ wss.on('connection', (ws: WebSocket) => {
 
                     // LOAD MEMORY
                     try {
+                        let preCallBriefText = "";
+                        
+                        // LOAD PRE-CALL BRIEF (NEW)
+                        const briefs = await db.select().from(callContexts).where(eq(callContexts.callId, currentCallId as string)).limit(1);
+                        const brief = briefs[0];
+
+                        if (brief) {
+                             preCallBriefText = `
+=== PRE-MEETING BRIEFING FOR THIS CALL ===
+Topic: ${brief.topic || 'N/A'}
+Customer Problem: ${brief.problem || 'N/A'}
+Our Solution: ${brief.solution || 'N/A'}
+Handling Style: ${brief.handlingStyle || 'N/A'}
+Previous Context: ${brief.previousContext || 'N/A'}
+==========================================
+`;
+                        }
+
                         const callRecords = await db.select().from(calls).where(eq(calls.id, currentCallId as string)).limit(1);
                         const call = callRecords[0];
 
@@ -359,11 +377,17 @@ wss.on('connection', (ws: WebSocket) => {
                                 .limit(1);
 
                             if (memories.length > 0) {
-                                previousContext = JSON.stringify(memories[0].summaryJson);
-                                console.log("LOADED MEMORY FOR THIS CLIENT:", previousContext); // Strict Log
+                                previousContext = preCallBriefText + "\n\nPAST MEMORY WITH THIS CLIENT: " + JSON.stringify(memories[0].summaryJson);
+                                console.log("LOADED PRE-CALL BRIEF & PAST MEMORY:", previousContext); 
+                            } else {
+                                previousContext = preCallBriefText;
+                                console.log("LOADED PRE-CALL BRIEF (NO PAST MEMORY)");
                             }
+                        } else {
+                            previousContext = preCallBriefText;
+                            console.log("LOADED PRE-CALL BRIEF (NO LINKED CUSTOMER)");
                         }
-                    } catch (e) { console.error("Memory Load Error:", e); }
+                    } catch (e) { console.error("Memory/Brief Load Error:", e); }
                 }
 
                 if (msg.type === 'end_call') {
@@ -425,8 +449,8 @@ async function runLiveGroqSuggestion(clientText: string, ws: WebSocket, memoryCo
 
     try {
         const systemPrompt = `You are a world-class AI Sales Coach advising a business owner during a live call.
-Here is the memory of past interactions with this client (if any):
-${memoryContext || "None"}
+Here is the context and briefing for this specific call:
+${memoryContext || "None provided. Use general best practices."}
 
 Your job:
 - Provide ONE short, highly specific, tactical suggestion to the business owner based on what the client just said.
