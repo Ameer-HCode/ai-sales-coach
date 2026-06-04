@@ -42,11 +42,29 @@ async function handleCallEnd(callId: string, ws: WebSocket | null) {
         // 2. Concatenate Transcript
         const fullText = transcripts.map(t => `${t.speaker === 'owner' ? 'Owner' : 'Client'}: ${t.text}`).join('\n');
 
-        // 3. Send to Groq for Summary
+        // 3. Fetch past memory if exists
+        const callRecords = await db.select().from(calls).where(eq(calls.id, callId)).limit(1);
+        const callRecord = callRecords[0];
+
+        let pastMemoryStr = "No previous memory available. This is the first call.";
+        if (callRecord?.customerId) {
+            const memories = await db.select().from(customerMemory)
+                .where(eq(customerMemory.customerId, callRecord.customerId as string))
+                .orderBy(desc(customerMemory.createdAt))
+                .limit(1);
+            if (memories.length > 0) {
+                pastMemoryStr = JSON.stringify(memories[0].summaryJson);
+            }
+        }
+
+        // 4. Send to Groq for Summary
         console.log("GENERATING SUMMARY JSON...");
         const systemPrompt = `You are an expert Real Estate AI Sales Analyst.
-You will receive a complete transcript of a real estate sales call.
-Your job is to produce a strictly formatted JSON summary that will be stored in long-term memory.
+You will receive a complete transcript of a new real estate sales call, AND the JSON "Master Profile" from the client's previous calls.
+
+Your job is to MERGE the old Master Profile with the new insights from the current transcript to produce an UPDATED Master Profile.
+DO NOT simply summarize only the new call. You must intelligently merge the data so the new profile retains critical past details (e.g., past budgets, rejected properties, old objections) while adding the new developments. 
+Keep lists strictly concise (Maximum 5 bullet points per array). Throw out old, irrelevant data if it was resolved in this new call.
 
 RULES:
 - Output ONLY JSON.
@@ -56,20 +74,21 @@ RULES:
 - No greeting.
 
 JSON KEYS REQUIRED:
-"summary"
-"key_points"
-"objections"
-"client_needs"
-"opportunities"
-"recommendations"
-"next_steps"
+"summary" (Brief 2-3 sentence overview of the entire relationship and latest status)
+"key_points" (Max 5 bullet points)
+"objections" (Max 5 bullet points)
+"client_needs" (Max 5 bullet points)
+"opportunities" (Max 5 bullet points)
+"recommendations" (Max 5 bullet points)
+"next_steps" (Max 5 bullet points)
 
-All arrays must contain short bullet-style items (as strings). Focus on real estate specifics (property details, budget, timeline, locations).`;
+OLD MASTER PROFILE TO UPDATE AND MERGE:
+${pastMemoryStr}`;
 
         const completion = await groq.chat.completions.create({
             messages: [
                 { role: "system", content: systemPrompt },
-                { role: "user", content: fullText }
+                { role: "user", content: "NEW TRANSCRIPT:\n" + fullText }
             ],
             model: "llama-3.3-70b-versatile",
             response_format: { type: "json_object" }
@@ -88,10 +107,7 @@ All arrays must contain short bullet-style items (as strings). Focus on real est
             return;
         }
 
-        // 4. Store in Call Memory
-        // 4. Store in Call Memory
-        const callRecords = await db.select().from(calls).where(eq(calls.id, callId)).limit(1);
-        const callRecord = callRecords[0];
+        // 5. Store in Call Memory
 
         // Update Call Status
         await db.update(calls).set({ status: 'ended', endedAt: new Date() }).where(eq(calls.id, callId));
