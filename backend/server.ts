@@ -274,7 +274,7 @@ wss.on('connection', (ws: WebSocket) => {
                 if (isSpeechFinal && speaker === "client") {
                     console.log(`🎯 DETECTED CLIENT SPEECH END. Triggering Groq...`);
                     const recentContext = callTranscriptContext.join('\n');
-                    runLiveGroqSuggestion(transcript, recentContext, ws, previousContext);
+                    runLiveGroqSuggestion(transcript, recentContext, ws, currentCallId);
                 }
 
                 // DB INSERTS
@@ -354,43 +354,8 @@ wss.on('connection', (ws: WebSocket) => {
                     // LOAD MEMORY
                     try {
                         let preCallBriefText = "";
-                        
-                        // LOAD PRE-CALL BRIEF (NEW)
-                        const briefs = await db.select().from(callContexts).where(eq(callContexts.callId, currentCallId as string)).limit(1);
-                        const brief = briefs[0];
-
-                        if (brief) {
-                             preCallBriefText = `
-=== PRE-MEETING BRIEFING FOR THIS CALL ===
-Topic: ${brief.topic || 'N/A'}
-Customer Problem: ${brief.problem || 'N/A'}
-Our Solution: ${brief.solution || 'N/A'}
-Handling Style: ${brief.handlingStyle || 'N/A'}
-Previous Context: ${brief.previousContext || 'N/A'}
-==========================================
-`;
-                        }
-
-                        const callRecords = await db.select().from(calls).where(eq(calls.id, currentCallId as string)).limit(1);
-                        const call = callRecords[0];
-
-                        if (call?.customerId) {
-                            const memories = await db.select().from(customerMemory)
-                                .where(eq(customerMemory.customerId, call.customerId as string))
-                                .orderBy(desc(customerMemory.createdAt))
-                                .limit(1);
-
-                            if (memories.length > 0) {
-                                previousContext = preCallBriefText + "\n\nPAST MEMORY WITH THIS CLIENT: " + JSON.stringify(memories[0].summaryJson);
-                                console.log("LOADED PRE-CALL BRIEF & PAST MEMORY:", previousContext); 
-                            } else {
-                                previousContext = preCallBriefText;
-                                console.log("LOADED PRE-CALL BRIEF (NO PAST MEMORY)");
-                            }
-                        } else {
-                            previousContext = preCallBriefText;
-                            console.log("LOADED PRE-CALL BRIEF (NO LINKED CUSTOMER)");
-                        }
+                        // We will dynamically load memory in runLiveGroqSuggestion instead of here, 
+                        // because the Guest might join *after* this WebSocket connection starts.
                     } catch (e) { console.error("Memory/Brief Load Error:", e); }
                 }
 
@@ -405,7 +370,15 @@ Previous Context: ${brief.previousContext || 'N/A'}
 
                 if (msg.type === 'debug_force_hint') {
                     console.log("🚀 DEBUG: FORCING AI HINT...");
-                    runLiveGroqSuggestion("Tell me more about your pricing structure and implementation timeline.", callTranscriptContext.join('\n'), ws, previousContext);
+                    runLiveGroqSuggestion("Tell me more about your pricing structure and implementation timeline.", callTranscriptContext.join('\n'), ws, currentCallId);
+                }
+                
+                if (msg.type === 'trigger_groq' && msg.text) {
+                    console.log(`🎯 MANUAL GROQ TRIGGER: ${msg.text}`);
+                    runLiveGroqSuggestion(msg.text, callTranscriptContext.join('\n'), ws, currentCallId);
+                } else if (msg.type === 'trigger_groq') {
+                    // Fallback
+                    runLiveGroqSuggestion("Tell me more about your pricing structure and implementation timeline.", callTranscriptContext.join('\n'), ws, currentCallId);
                 }
             } catch (e) { console.error('[WS] Failed to parse JSON message:', e); }
             return;
@@ -442,7 +415,7 @@ Previous Context: ${brief.previousContext || 'N/A'}
 });
 
 // --- LIVE SUGGESTION LOGIC ---
-async function runLiveGroqSuggestion(clientText: string, liveTranscriptContext: string, ws: WebSocket, memoryContext: string) {
+async function runLiveGroqSuggestion(clientText: string, liveTranscriptContext: string, ws: WebSocket, currentCallId: string | null) {
     console.log("GROQ PROMPT SENT:", clientText); // Strict Log
 
     if (!process.env.GROQ_API_KEY) {
@@ -450,6 +423,44 @@ async function runLiveGroqSuggestion(clientText: string, liveTranscriptContext: 
         return;
     }
     if (!clientText || clientText.trim().length === 0) return;
+
+    let memoryContext = "";
+
+    if (currentCallId) {
+        try {
+            const preContextRows = await db.select().from(callContexts).where(eq(callContexts.callId, currentCallId)).limit(1);
+            let preCallBriefText = "";
+            if (preContextRows.length > 0) {
+                const p = preContextRows[0];
+                preCallBriefText = `Pre-Call Brief:
+Topic: ${p.topic || 'N/A'}
+Problem: ${p.problem || 'N/A'}
+Proposed Solution: ${p.solution || 'N/A'}
+Objection Handling Style: ${p.handlingStyle || 'N/A'}
+Previous Context: ${p.previousContext || 'N/A'}`;
+            }
+
+            const callRecords = await db.select().from(calls).where(eq(calls.id, currentCallId)).limit(1);
+            const call = callRecords[0];
+
+            if (call?.customerId) {
+                const memories = await db.select().from(customerMemory)
+                    .where(eq(customerMemory.customerId, call.customerId as string))
+                    .orderBy(desc(customerMemory.createdAt))
+                    .limit(1);
+
+                if (memories.length > 0) {
+                    memoryContext = preCallBriefText + "\n\nPAST MEMORY WITH THIS CLIENT: " + JSON.stringify(memories[0].summaryJson);
+                } else {
+                    memoryContext = preCallBriefText;
+                }
+            } else {
+                memoryContext = preCallBriefText;
+            }
+        } catch (e) {
+            console.error("Failed to load memory context for Groq:", e);
+        }
+    }
 
     try {
         const systemPrompt = `You are an elite Real Estate AI Sales Coach advising a real estate agent during a live call.
@@ -461,6 +472,8 @@ ${liveTranscriptContext}
 
 Your job:
 - Provide ONE short, highly specific, tactical suggestion to the agent based on what the client just said.
+- **OUT OF DOMAIN HANDLING**: If the client asks about or discusses something completely unrelated to real estate (e.g., cars, software, unrelated consulting, random chatter), guide the agent to politely pivot the conversation BACK to real estate. Provide the exact wording to transition back (e.g., "That's interesting! By the way, speaking of moving forward, did you want to review the layout for the suburban property?").
+- **NEGOTIATION & BOTTOM LINE**: If the client mentions price or budget, remember their numbers. If there is a "Bottom Line" price listed in the briefing, guide the agent to start higher and slowly negotiate down, but strictly warn the agent NEVER to accept an offer below that bottom line. (e.g., "They offered $190k. Hold firm—remind them your absolute lowest is $200k because of the recent upgrades.").
 - Use real estate terminology (comps, appraisals, escrow, contingencies, ROI, bedrooms, square footage).
 - If the client immediately throws an objection like "I am not interested" right at the start of the call, give the agent a powerful "pattern interrupt" to keep them on the line (e.g., "Acknowledge the interruption and pivot: 'I completely understand I caught you out of the blue, but if I could show you an off-market property that matches your criteria, would you give me 30 seconds?'").
 - If they mention a specific property price or feature (e.g. $50,000 vs $100,000), remember it and use it in your advice. Address why the price differs if asked.

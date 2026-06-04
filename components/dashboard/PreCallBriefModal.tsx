@@ -25,6 +25,7 @@ export function PreCallBriefModal({ isOpen, onClose, isForLater, onCreatedForLat
     const [problem, setProblem] = useState("");
     const [solution, setSolution] = useState("");
     const [handlingStyle, setHandlingStyle] = useState("");
+    const [bottomLine, setBottomLine] = useState("");
     const [previousContext, setPreviousContext] = useState("");
 
     const handleStart = async () => {
@@ -34,7 +35,7 @@ export function PreCallBriefModal({ isOpen, onClose, isForLater, onCreatedForLat
                 topic,
                 problem,
                 solution,
-                handlingStyle,
+                handlingStyle: handlingStyle + (bottomLine ? ` | ABSOLUTE BOTTOM LINE PRICE: $${bottomLine}. DO NOT GO BELOW THIS.` : ""),
                 previousContext
             });
             
@@ -97,6 +98,15 @@ export function PreCallBriefModal({ isOpen, onClose, isForLater, onCreatedForLat
                             placeholder="e.g. ROI focus on property appreciation, or Consultative" 
                             value={handlingStyle}
                             onChange={(e) => setHandlingStyle(e.target.value)}
+                        />
+                    </div>
+                    <div className="grid gap-2">
+                        <label className="text-sm font-medium leading-none text-red-600">Bottom Line Price (Optional)</label>
+                        <Input 
+                            placeholder="e.g. 200000" 
+                            type="number"
+                            value={bottomLine}
+                            onChange={(e) => setBottomLine(e.target.value)}
                         />
                     </div>
                     <div className="grid gap-2">

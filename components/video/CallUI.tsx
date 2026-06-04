@@ -126,7 +126,14 @@ export default function CallUI() {
             {/* 6. Controls Bar */}
             <Controls
                 isRecording={isRecording}
-                onToggleAudio={isHost ? () => isRecording ? stopAudio() : startAudio() : undefined}
+                onToggleAudio={isHost ? () => {
+                    if (isRecording) {
+                        stopAudio();
+                    } else {
+                        startAudio();
+                        toast.success("AI pipeline is active and waiting to listen!");
+                    }
+                } : undefined}
                 onToggleSidebar={() => setShowInfo(true)}
             />
 

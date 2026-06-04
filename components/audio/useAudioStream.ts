@@ -340,15 +340,8 @@ export function useAudioStream(meetingId: string, userId: string, participantCou
         wsInstance.current?.close();
     }, [cleanupAudio]);
 
-    // Auto-Start
-    useEffect(() => {
-        if (isHost && meetingId && userId && !isRecording && !audioContextRef.current) {
-            const t = setTimeout(() => {
-                if (isMounted.current) startAudio();
-            }, 1000);
-            return () => clearTimeout(t);
-        }
-    }, [meetingId, userId, isHost]);
+    // Auto-Start removed: The pipeline is now paused by default.
+    // The user must manually click the "AI PAUSED" button to start it.
 
     return { isRecording, startAudio, stopAudio, error, transcript, aiSuggestions, diagnostics };
 }

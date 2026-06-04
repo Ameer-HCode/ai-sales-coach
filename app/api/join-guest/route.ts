@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { callParticipants } from "@/backend/db/schema";
+import { callParticipants, customers, calls } from "@/backend/db/schema";
 import { tokenProvider } from "@/actions/stream";
 import { v4 as uuidv4 } from 'uuid';
+import { eq } from 'drizzle-orm';
 
 export async function POST(req: Request) {
     try {
@@ -15,7 +16,28 @@ export async function POST(req: Request) {
 
         const userId = uuidv4();
 
-        // 1. Store Participant in DB
+        // 1. Handle Customer Record (Long-term memory linking)
+        let customerRecord = await db.query.customers.findFirst({
+            where: (customers, { eq }) => eq(customers.email, email)
+        });
+
+        if (!customerRecord) {
+            const inserted = await db.insert(customers).values({
+                email,
+                name
+            }).returning();
+            customerRecord = inserted[0];
+        }
+
+        // 2. Link Customer to Call
+        await db.update(calls)
+            .set({ 
+                customerId: customerRecord.id,
+                customerEmail: email 
+            })
+            .where(eq(calls.id, callId));
+
+        // 3. Store Participant in DB
         await db.insert(callParticipants).values({
             callId,
             name,
