@@ -143,7 +143,7 @@ export default function Controls({ onToggleSidebar, scaleMode, onToggleScale, is
                 <Button
                     variant="secondary"
                     size="icon"
-                    className="rounded-full h-11 w-11 bg-[#3c4043] text-white hover:bg-[#4a4d51] border-none"
+                    className="hidden md:flex rounded-full h-11 w-11 bg-[#3c4043] text-white hover:bg-[#4a4d51] border-none"
                     onClick={handleFlipCamera}
                 >
                     <RefreshCcw className="h-5 w-5" />
@@ -153,7 +153,7 @@ export default function Controls({ onToggleSidebar, scaleMode, onToggleScale, is
             {/* Screen Share (Pill Style) */}
             <Button
                 variant="secondary"
-                className="rounded-full h-11 px-5 bg-[#3c4043] text-white hover:bg-[#4a4d51] border-none gap-2"
+                className="hidden md:flex rounded-full h-11 px-5 bg-[#3c4043] text-white hover:bg-[#4a4d51] border-none gap-2"
                 onClick={() => call.screenShare.toggle()}
             >
                 <MonitorUp className="h-5 w-5" />
@@ -163,7 +163,7 @@ export default function Controls({ onToggleSidebar, scaleMode, onToggleScale, is
             <Button
                 variant="secondary"
                 size="icon"
-                className="rounded-full h-11 w-11 bg-[#3c4043] text-white hover:bg-[#4a4d51] border-none"
+                className="hidden md:flex rounded-full h-11 w-11 bg-[#3c4043] text-white hover:bg-[#4a4d51] border-none"
                 onClick={onToggleSidebar}
             >
                 <Info className="h-5 w-5" />
@@ -173,7 +173,7 @@ export default function Controls({ onToggleSidebar, scaleMode, onToggleScale, is
             <Button
                 variant={isScreenRecording ? "destructive" : "secondary"}
                 className={cn(
-                    "rounded-full h-11 px-4 gap-2 border-none transition-colors duration-200",
+                    "hidden md:flex rounded-full h-11 px-4 gap-2 border-none transition-colors duration-200",
                     isScreenRecording ? "bg-[#ea4335] hover:bg-[#d93025] text-white" : "bg-[#3c4043] text-white hover:bg-[#4a4d51]"
                 )}
                 onClick={handleToggleScreenRecording}
@@ -189,7 +189,7 @@ export default function Controls({ onToggleSidebar, scaleMode, onToggleScale, is
                 <Button
                     variant={isRecording ? "default" : "destructive"} // Green/Blue if on, Red if off/error
                     className={cn(
-                        "rounded-full h-11 px-4 gap-2 border-none transition-colors duration-200 ml-2",
+                        "rounded-full h-11 px-4 gap-2 border-none transition-colors duration-200 ml-0 md:ml-2",
                         isRecording
                             ? "bg-[#8ab4f8]/20 hover:bg-[#8ab4f8]/30 text-[#8ab4f8]"
                             : "bg-[#3c4043] text-[#9aa0a6] hover:bg-[#4a4d51]"
@@ -197,14 +197,15 @@ export default function Controls({ onToggleSidebar, scaleMode, onToggleScale, is
                     onClick={onToggleAudio}
                 >
                     <div className={cn("w-2 h-2 rounded-full", isRecording ? "bg-[#8ab4f8] animate-pulse" : "bg-red-500")} />
-                    <span className="font-medium text-[13px] tracking-wide">{isRecording ? "AI LISTENING" : "AI PAUSED"}</span>
+                    <span className="hidden md:inline font-medium text-[13px] tracking-wide">{isRecording ? "AI LISTENING" : "AI PAUSED"}</span>
+                    <span className="md:hidden font-medium text-[13px] tracking-wide">AI</span>
                 </Button>
             )}
 
             <Button
                 variant="destructive"
                 size="icon"
-                className="rounded-full h-11 w-11 bg-[#ea4335] hover:bg-[#d93025] ml-4 transition-colors"
+                className="rounded-full h-11 w-11 bg-[#ea4335] hover:bg-[#d93025] ml-2 md:ml-4 transition-colors shrink-0"
                 onClick={async () => {
                     await call.leave();
                     router.push("/dashboard");

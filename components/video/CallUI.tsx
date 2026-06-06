@@ -138,21 +138,42 @@ export default function CallUI() {
             />
 
             {/* DEBUG: Force Suggestion */}
-            <Button
-                variant="ghost"
-                size="sm"
-                className="fixed top-4 right-4 z-50 text-[10px] text-zinc-700 hover:text-white"
-                onClick={() => {
-                    const ws = (window as any).debugWs;
-                    if (ws && ws.readyState === 1) {
-                        ws.send(JSON.stringify({ type: 'debug_force_hint' }));
-                    } else {
-                        toast.error("WS not ready for debug");
-                    }
-                }}
-            >
-                [Debug: Force Suggestion]
-            </Button>
+            <div className="fixed top-4 right-4 z-50 flex items-center gap-2 bg-black/40 backdrop-blur-md p-2 rounded-lg border border-white/10">
+                <input 
+                    type="text" 
+                    id="debug-input"
+                    placeholder="Type client speech & press Enter..."
+                    className="text-xs px-2 py-1 bg-black/50 border border-white/20 rounded text-white w-48 outline-none focus:border-blue-500"
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            const ws = (window as any).debugWs;
+                            const val = e.currentTarget.value;
+                            if (ws && ws.readyState === 1 && val) {
+                                ws.send(JSON.stringify({ type: 'trigger_groq', text: val }));
+                                e.currentTarget.value = '';
+                                toast.success("Simulated client speech sent!");
+                            } else {
+                                toast.error("WebSocket not connected yet.");
+                            }
+                        }
+                    }}
+                />
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-[10px] text-zinc-400 hover:text-white"
+                    onClick={() => {
+                        const ws = (window as any).debugWs;
+                        if (ws && ws.readyState === 1) {
+                            ws.send(JSON.stringify({ type: 'debug_force_hint' }));
+                        } else {
+                            toast.error("WS not ready for debug");
+                        }
+                    }}
+                >
+                    [Force Hint]
+                </Button>
+            </div>
 
             {/* 7. Info Dialog */}
             <Dialog open={showInfo} onOpenChange={setShowInfo}>

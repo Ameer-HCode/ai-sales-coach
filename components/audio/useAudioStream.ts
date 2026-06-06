@@ -114,11 +114,15 @@ export function useAudioStream(meetingId: string, userId: string, participantCou
         setDiagnostics(prev => ({ ...prev, wsState: retryCount.current > 0 ? 'RECONNECTING' : 'CONNECTING' }));
 
         const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-        const wsUrl = isLocal 
-            ? "ws://localhost:5001" 
-            : "wss://marylee-brotherlike-rosily.ngrok-free.dev";
+        
+        let wsUrl = process.env.NEXT_PUBLIC_WS_URL;
+        if (!wsUrl) {
+            wsUrl = isLocal 
+                ? "ws://localhost:5001" 
+                : "wss://marylee-brotherlike-rosily.ngrok-free.dev";
+        }
 
-        console.log(`[WS] Connecting... Attempt ${retryCount.current + 1}`);
+        console.log(`[WS] Connecting to ${wsUrl}... Attempt ${retryCount.current + 1}`);
         const ws = new WebSocket(wsUrl);
         ws.binaryType = "arraybuffer";
         wsInstance.current = ws;
@@ -240,6 +244,15 @@ export function useAudioStream(meetingId: string, userId: string, participantCou
             } catch (e) { console.error(e); }
         }
     }, [participants, isRecording]);
+
+    // ----------------------------------------------------------------
+    // TRIGGER MEMORY RELOAD ON GUEST JOIN
+    // ----------------------------------------------------------------
+    useEffect(() => {
+        if (participantCount > 1 && wsInstance.current?.readyState === WebSocket.OPEN) {
+            wsInstance.current.send(JSON.stringify({ type: 'reload_memory' }));
+        }
+    }, [participantCount]);
 
 
     const startAudio = async () => {

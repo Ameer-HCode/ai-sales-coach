@@ -13,6 +13,7 @@ dotenv.config({ path: path.resolve(__dirname, '.env') });
 const PORT = parseInt(process.env.PORT || '5001', 10);
 const wss = new WebSocketServer({ port: PORT });
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const callMemoryCache = new Map<string, string>();
 
 console.log(`✅ [AI SALES COACH] Production Backend Running on Port ${PORT}`);
 
@@ -195,7 +196,7 @@ wss.on('connection', (ws: WebSocket) => {
                 encoding: "linear16",
                 sample_rate: 16000,
                 punctuate: true,
-                endpointing: 300,
+                endpointing: 200,
                 channels: 2,
                 multichannel: true,
                 interim_results: true
@@ -207,7 +208,7 @@ wss.on('connection', (ws: WebSocket) => {
                 encoding: "linear16",
                 sample_rate: 16000,
                 punctuate: true,
-                endpointing: 300,
+                endpointing: 200,
                 channels: 1,
                 diarize: true,
                 interim_results: true
@@ -367,12 +368,17 @@ wss.on('connection', (ws: WebSocket) => {
                     // Ensure DB has this call ID? 
                     // Usually frontend creates call in DB first. We assume it exists.
 
-                    // LOAD MEMORY
+                    // Preload memory to completely eliminate latency on the first spoken sentence
                     try {
-                        let preCallBriefText = "";
-                        // We will dynamically load memory in runLiveGroqSuggestion instead of here, 
-                        // because the Guest might join *after* this WebSocket connection starts.
+                        if (currentCallId) preloadMemoryContext(currentCallId);
                     } catch (e) { console.error("Memory/Brief Load Error:", e); }
+                }
+
+                if (msg.type === 'reload_memory') {
+                    if (currentCallId) {
+                        console.log(`🔄 Reloading memory for call ${currentCallId}`);
+                        await preloadMemoryContext(currentCallId, true);
+                    }
                 }
 
                 if (msg.type === 'end_call') {
@@ -430,6 +436,44 @@ wss.on('connection', (ws: WebSocket) => {
     });
 });
 
+async function preloadMemoryContext(callId: string, forceReload: boolean = false) {
+    if (!callId || (!forceReload && callMemoryCache.has(callId))) return;
+    if (forceReload) callMemoryCache.delete(callId);
+    try {
+        console.log(`⏳ Preloading memory context for call: ${callId}`);
+        const preContextRows = await db.select().from(callContexts).where(eq(callContexts.callId, callId)).limit(1);
+        let preCallBriefText = "";
+        if (preContextRows.length > 0) {
+            const p = preContextRows[0];
+            preCallBriefText = `Pre-Call Brief:
+Topic: ${p.topic || 'N/A'}
+Problem: ${p.problem || 'N/A'}
+Proposed Solution: ${p.solution || 'N/A'}
+Objection Handling Style: ${p.handlingStyle || 'N/A'}
+Previous Context: ${p.previousContext || 'N/A'}`;
+        }
+
+        const callRecords = await db.select().from(calls).where(eq(calls.id, callId)).limit(1);
+        const call = callRecords[0];
+
+        let memoryContext = preCallBriefText;
+        if (call?.customerId) {
+            const memories = await db.select().from(customerMemory)
+                .where(eq(customerMemory.customerId, call.customerId as string))
+                .orderBy(desc(customerMemory.createdAt))
+                .limit(1);
+
+            if (memories.length > 0) {
+                memoryContext = preCallBriefText + "\n\nPAST MEMORY WITH THIS CLIENT: " + JSON.stringify(memories[0].summaryJson);
+            }
+        }
+        callMemoryCache.set(callId, memoryContext);
+        console.log(`✅ Preloaded memory context for call: ${callId}`);
+    } catch (e) {
+        console.error("❌ Failed to preload memory context:", e);
+    }
+}
+
 // --- LIVE SUGGESTION LOGIC ---
 async function runLiveGroqSuggestion(clientText: string, liveTranscriptContext: string, ws: WebSocket, currentCallId: string | null) {
     console.log("GROQ PROMPT SENT:", clientText); // Strict Log
@@ -440,9 +484,9 @@ async function runLiveGroqSuggestion(clientText: string, liveTranscriptContext: 
     }
     if (!clientText || clientText.trim().length === 0) return;
 
-    let memoryContext = "";
+    let memoryContext = currentCallId ? callMemoryCache.get(currentCallId) : "";
 
-    if (currentCallId) {
+    if (currentCallId && !memoryContext) {
         try {
             const preContextRows = await db.select().from(callContexts).where(eq(callContexts.callId, currentCallId)).limit(1);
             let preCallBriefText = "";
@@ -473,6 +517,7 @@ Previous Context: ${p.previousContext || 'N/A'}`;
             } else {
                 memoryContext = preCallBriefText;
             }
+            callMemoryCache.set(currentCallId, memoryContext);
         } catch (e) {
             console.error("Failed to load memory context for Groq:", e);
         }

@@ -1,5 +1,7 @@
 "use client"
 
+import React, { useEffect, useState } from "react"
+
 import {
     Table,
     TableBody,
@@ -17,12 +19,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Search, Eye, Video } from "lucide-react"
 import Link from "next/link"
-import { useEffect, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { getCallsData } from "@/actions/get-calls"
-import { Sparkles, TrendingUp, AlertTriangle, ThumbsUp } from "lucide-react"
+import { Sparkles, TrendingUp, AlertTriangle, ThumbsUp, ChevronDown, ChevronRight } from "lucide-react"
 
 
 
@@ -43,16 +44,40 @@ export function RecentCalls() {
     const [recentCalls, setRecentCalls] = useState<any[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [selectedCall, setSelectedCall] = useState<any>(null)
+    const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({})
+
+    const toggleDate = (date: string) => {
+        setExpandedDates(prev => ({ ...prev, [date]: !prev[date] }))
+    }
 
     useEffect(() => {
         getCallsData(Date.now()).then(data => {
             setRecentCalls(data)
+            
+            // Auto-expand the most recent date if exists
+            if (data.length > 0) {
+                const firstDate = new Date(data[0].date).toLocaleDateString();
+                setExpandedDates({ [firstDate]: true });
+            }
             setIsLoading(false)
         }).catch(err => {
             console.error("Failed to load calls:", err)
             setIsLoading(false)
         })
     }, [])
+
+    // Group calls by date
+    const callsByDate = recentCalls.reduce((acc, call) => {
+        const dateStr = new Date(call.date).toLocaleDateString();
+        if (!acc[dateStr]) acc[dateStr] = [];
+        acc[dateStr].push(call);
+        return acc;
+    }, {} as Record<string, any[]>);
+
+    // Get last 5 unique dates sorted
+    const sortedDates = Object.keys(callsByDate)
+        .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
+        .slice(0, 5);
 
     return (
         <Card className="col-span-1 lg:col-span-2 h-full">
@@ -92,65 +117,91 @@ export function RecentCalls() {
                         <TabsTrigger value="team">Team Calls</TabsTrigger>
                     </TabsList>
                     <TabsContent value="all">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Lead</TableHead>
-                                    <TableHead>Date & Time</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead className="hidden md:table-cell">Duration</TableHead>
-                                    <TableHead className="hidden lg:table-cell">AI Summary</TableHead>
-                                    <TableHead className="text-right">Action</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {isLoading ? (
+                        <div className="overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
+                            <Table className="min-w-[600px]">
+                                <TableHeader>
                                     <TableRow>
-                                        <TableCell colSpan={6} className="h-24 text-center text-slate-500">
-                                            Loading calls...
-                                        </TableCell>
+                                        <TableHead>Lead</TableHead>
+                                        <TableHead>Date & Time</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead className="hidden md:table-cell">Duration</TableHead>
+                                        <TableHead className="hidden lg:table-cell w-[300px]">AI Summary</TableHead>
+                                        <TableHead className="text-right">Action</TableHead>
                                     </TableRow>
-                                ) : recentCalls.length > 0 ? (
-                                    recentCalls.map((call) => (
-                                        <TableRow key={call.id}>
-                                            <TableCell>
-                                                <div className="flex items-center space-x-3">
-                                                    <Avatar className="h-9 w-9">
-                                                        <AvatarImage src={call.avatar} alt={call.name} />
-                                                        <AvatarFallback className="bg-indigo-50 text-indigo-600">{call.initials}</AvatarFallback>
-                                                    </Avatar>
-                                                    <div>
-                                                        <div className="font-medium text-sm">{call.name}</div>
-                                                        <div className="text-xs text-muted-foreground">{call.company}</div>
-                                                    </div>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="text-sm text-muted-foreground">{call.date}</TableCell>
-                                            <TableCell>
-                                                <Badge variant="outline" className={getStatusColor(call.status)}>
-                                                    {call.status}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell className="hidden md:table-cell text-sm">{call.duration}</TableCell>
-                                            <TableCell className="hidden lg:table-cell text-sm text-muted-foreground max-w-[200px] truncate">
-                                                {call.summary}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedCall(call)}>
-                                                    <Eye className="h-4 w-4 text-slate-500" />
-                                                </Button>
+                                </TableHeader>
+                                <TableBody>
+                                    {isLoading ? (
+                                        <TableRow>
+                                            <TableCell colSpan={6} className="h-24 text-center text-slate-500">
+                                                Loading calls...
                                             </TableCell>
                                         </TableRow>
-                                    ))
-                                ) : (
-                                    <TableRow>
-                                        <TableCell colSpan={6} className="h-24 text-center text-slate-500">
-                                            No calls found.
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
+                                    ) : sortedDates.length > 0 ? (
+                                        sortedDates.map((dateGroup) => (
+                                            <React.Fragment key={dateGroup}>
+                                                <TableRow 
+                                                    className="bg-slate-50/80 hover:bg-slate-100 cursor-pointer border-b transition-colors"
+                                                    onClick={() => toggleDate(dateGroup)}
+                                                >
+                                                    <TableCell colSpan={6} className="font-semibold text-slate-700 py-3">
+                                                        <div className="flex items-center gap-2">
+                                                            {expandedDates[dateGroup] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                                            {dateGroup} <Badge variant="secondary" className="ml-2 bg-white text-xs">{callsByDate[dateGroup].length} calls</Badge>
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                                
+                                                {expandedDates[dateGroup] && callsByDate[dateGroup].map((call) => (
+                                                    <TableRow key={call.id} className="bg-white">
+                                                        <TableCell>
+                                                            <div className="flex items-center space-x-3">
+                                                                <Avatar className="h-9 w-9">
+                                                                    <AvatarImage src={call.avatar} alt={call.name} />
+                                                                    <AvatarFallback className="bg-indigo-50 text-indigo-600">{call.initials}</AvatarFallback>
+                                                                </Avatar>
+                                                                <div>
+                                                                    <div className="font-medium text-sm">{call.name}</div>
+                                                                    <div className="text-xs text-muted-foreground truncate max-w-[120px]">{call.company}</div>
+                                                                </div>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="text-sm text-muted-foreground">{call.date}</TableCell>
+                                                        <TableCell>
+                                                            <Badge variant="outline" className={getStatusColor(call.status)}>
+                                                                {call.status}
+                                                            </Badge>
+                                                        </TableCell>
+                                                        <TableCell className="hidden md:table-cell text-sm">{call.duration}</TableCell>
+                                                        <TableCell className="hidden lg:table-cell text-sm text-muted-foreground max-w-[300px]">
+                                                            {call.fullSummaryJson?.key_points && call.fullSummaryJson.key_points.length > 0 ? (
+                                                                <ul className="list-disc pl-4 space-y-1 text-xs">
+                                                                    {call.fullSummaryJson.key_points.slice(0, 5).map((kp: string, i: number) => (
+                                                                        <li key={i} className="line-clamp-2">{kp}</li>
+                                                                    ))}
+                                                                </ul>
+                                                            ) : (
+                                                                <span className="truncate block">{call.summary}</span>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell className="text-right">
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setSelectedCall(call); }}>
+                                                                <Eye className="h-4 w-4 text-slate-500" />
+                                                            </Button>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </React.Fragment>
+                                        ))
+                                    ) : (
+                                        <TableRow>
+                                            <TableCell colSpan={6} className="h-24 text-center text-slate-500">
+                                                No calls found.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
                     </TabsContent>
                     <TabsContent value="my_calls">
                         <div className="py-8 text-center text-muted-foreground">
@@ -166,7 +217,7 @@ export function RecentCalls() {
             </CardContent>
 
             <Dialog open={!!selectedCall} onOpenChange={(open) => !open && setSelectedCall(null)}>
-                <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+                <DialogContent className="w-[95vw] max-w-3xl max-h-[85vh] flex flex-col p-4 md:p-6 rounded-xl">
                     <DialogHeader>
                         <DialogTitle className="text-xl">{selectedCall?.title}</DialogTitle>
                         <DialogDescription>

@@ -24,7 +24,7 @@ export function AISuggestionsPanel({ suggestions }: AISuggestionsPanelProps) {
 
     return (
         <div className={cn(
-            "fixed bottom-4 right-4 z-40 transition-all duration-300 ease-in-out",
+            "fixed bottom-24 right-4 md:bottom-24 md:right-4 lg:bottom-4 z-40 transition-all duration-300 ease-in-out",
             "flex flex-col items-end gap-2"
         )}>
             {/* Toggle Button */}

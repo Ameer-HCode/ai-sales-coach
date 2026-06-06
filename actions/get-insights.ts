@@ -12,7 +12,10 @@ export async function getInsightsData(timestamp?: number) {
     let idCounter = 1;
 
     for (const mem of memories) {
-        const summary = mem.summaryJson as any;
+        let summary = mem.summaryJson as any;
+        if (typeof summary === 'string') {
+            try { summary = JSON.parse(summary); } catch (e) {}
+        }
         if (!summary) continue;
 
         const timeStr = mem.createdAt 
