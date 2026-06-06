@@ -533,6 +533,7 @@ ${liveTranscriptContext}
 
 Your job:
 - Provide ONE short, highly specific, tactical suggestion to the agent based on what the client just said.
+- **CRITICAL: DO NOT HALLUCINATE OR ASSUME DETAILS**. If the briefing says "N/A" for the topic or problem, and there is no past memory, DO NOT invent properties (like 2-bedroom apartments) or budgets. Instead, advise the agent to ask open-ended discovery questions to uncover the client's needs.
 - **OUT OF DOMAIN HANDLING**: If the client asks about or discusses something completely unrelated to real estate (e.g., cars, software, unrelated consulting, random chatter), guide the agent to politely pivot the conversation BACK to real estate. Provide the exact wording to transition back (e.g., "That's interesting! By the way, speaking of moving forward, did you want to review the layout for the suburban property?").
 - **NEGOTIATION & BOTTOM LINE**: If the client mentions price or budget, remember their numbers. If there is a "Bottom Line" price listed in the briefing, guide the agent to start higher and slowly negotiate down, but strictly warn the agent NEVER to accept an offer below that bottom line. (e.g., "They offered $190k. Hold firm—remind them your absolute lowest is $200k because of the recent upgrades.").
 - Use real estate terminology (comps, appraisals, escrow, contingencies, ROI, bedrooms, square footage).
